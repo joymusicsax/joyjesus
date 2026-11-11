@@ -3,7 +3,7 @@
 //   on=true  舉手：新增一筆「舉手參加」紀錄（確認狀態＝待確認），讓同工提前知道人數
 //   on=false 放下手：刪除自己還沒被確認的那筆
 // 聚會過後，船長／督導在船長甲板確認出席 → 已確認＝完成這一週
-import { DB, notion, queryAll, createPage, P, W, id, handle, json, verifyLine, findMember, readJson, todayTW, HttpError, currentSeries } from '../../../lib/notion.js';
+import { DB, notion, queryAll, createPage, P, W, id, handle, json, verifyLine, findMember, readJson, nowTW, HttpError, currentSeries } from '../../../lib/notion.js';
 
 export const onRequestPost = handle(async ({ env, request }) => {
   const user = await verifyLine(env, request);
@@ -33,7 +33,7 @@ export const onRequestPost = handle(async ({ env, request }) => {
     '成員': W.rel([id(m)]),
     '系列': W.rel([s.id]),
     '系列聚會日': W.date(date),
-    '完成日期': W.date(todayTW()),
+    '完成日期': W.datetime(nowTW()),
     '紀錄方式': W.select('舉手參加'),
     '確認狀態': W.select('待確認'),
   });

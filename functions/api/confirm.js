@@ -1,7 +1,7 @@
 // POST /api/confirm — 船長確認（或退回）船員回報的任務
 // body: { logId, action: 'confirm' | 'reject' }
 // 權限：這位船員所在的船，我是船長；或我是督導。不能確認自己的回報。
-import { notion, updatePage, P, W, id, handle, json, verifyLine, findMember, readJson, todayTW, HttpError,
+import { notion, updatePage, P, W, id, handle, json, verifyLine, findMember, readJson, nowTW, HttpError,
   boatMap, boatOf, captainBoats, isSupervisor } from '../../lib/notion.js';
 
 export const onRequestPost = handle(async ({ env, request }) => {
@@ -23,13 +23,13 @@ export const onRequestPost = handle(async ({ env, request }) => {
   const allowed = isSupervisor(me) || captainBoats(me, bm).includes(boatOf(crew, bm));
   if (!allowed) throw new HttpError(403, '只有這艘船的船長可以確認');
 
-  const today = todayTW();
+  const now = nowTW();
   await updatePage(env, logId, {
     '確認狀態': W.select(action === 'confirm' ? '已確認' : '退回'),
     '確認者': W.rel([id(me)]),
-    '確認日期': W.date(today),
+    '確認日期': W.datetime(now),
   });
   // 確認也算一次互動
-  if (action === 'confirm') await updatePage(env, crewId, { '最後互動日': W.date(today) }).catch(() => {});
+  if (action === 'confirm') await updatePage(env, crewId, { '最後互動日': W.datetime(now) }).catch(() => {});
   return json({ ok: true });
 });

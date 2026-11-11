@@ -1,6 +1,6 @@
-// POST /api/complete — 船員「回報完成」。不會直接算完成，要等船長（或督導）確認。
+// POST /api/complete — 船員按「我要挑戰」。不會直接算完成，要等船長（或督導）確認。
 // body: { questId }
-import { DB, notion, queryAll, createPage, P, W, id, handle, json, verifyLine, findMember, readJson, todayTW, HttpError } from '../../lib/notion.js';
+import { DB, notion, queryAll, createPage, P, W, id, handle, json, verifyLine, findMember, readJson, nowTW, HttpError } from '../../lib/notion.js';
 
 export const onRequestPost = handle(async ({ env, request }) => {
   const user = await verifyLine(env, request);
@@ -26,7 +26,7 @@ export const onRequestPost = handle(async ({ env, request }) => {
     '紀錄': W.title(`${P.title(m, '暱稱')}｜${P.title(q, '任務名稱')}`),
     '成員': W.rel([id(m)]),
     '任務': W.rel([id(q)]),
-    '完成日期': W.date(todayTW()),
+    '完成日期': W.datetime(nowTW()),
     '紀錄方式': W.select('船員回報'),
     '確認狀態': W.select('待確認'),
   });

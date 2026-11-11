@@ -106,8 +106,8 @@ export const onRequestGet = handle(async ({ env, request }) => {
       name: P.title(r, '暱稱'),
       status: P.select(r, '狀態'),
       circle: P.select(r, '圈層'),
-      joined: P.date(r, '加入日期'),
-      lastContact: P.date(r, '最後互動日'),
+      joined: (P.date(r, '加入日期') || '').slice(0, 10) || null,
+      lastContact: (P.date(r, '最後互動日') || '').slice(0, 10) || null,
       needsCare: !!P.formula(r, '需要關心'),
       done: doneBy[id(r)] || 0,
     }));
@@ -125,8 +125,8 @@ export const onRequestGet = handle(async ({ env, request }) => {
           id: id(lg),
           name: who ? P.title(who, '暱稱') : '',
           quest: questName[P.rel(lg, '任務')[0]] || (P.title(lg, '紀錄').split('｜')[1] || P.title(lg, '紀錄')),
-          kind: P.select(lg, '紀錄方式') === '舉手參加' ? '有舉手，確認是否出席' : '回報完成',
-          date: P.date(lg, '完成日期'),
+          kind: P.select(lg, '紀錄方式') === '舉手參加' ? '有舉手，確認是否出席' : '我要挑戰',
+          date: (P.date(lg, '完成日期') || '').slice(0, 10) || null,
         };
       });
   }
@@ -139,7 +139,7 @@ export const onRequestGet = handle(async ({ env, request }) => {
       status: P.select(m, '狀態'),
       roles,
       quiz: P.select(m, '測驗結果'),
-      joined: P.date(m, '加入日期'),
+      joined: (P.date(m, '加入日期') || '').slice(0, 10) || null,
       isCaptain: myBoats.length > 0 || roles.includes('船長'),
       isSupervisor: sup,
       intro: P.text(m, '自我介紹'),

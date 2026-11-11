@@ -201,12 +201,12 @@
       var ev = gather ? nextEvent() : null;
       var sub = ev ? '下一站：' + fmtEvent(ev) : (q.note || '');
       h += '<div class="step' + (isNext ? ' next' : '') + '"><span class="chk' + (q.done ? ' on' : '') + '"></span><div style="flex:1;min-width:0"><p style="font-size:14px;' + (isNext ? 'font-weight:700' : '') + '" class="' + (q.done ? 'done-text' : '') + '">' + esc(q.name) + '</p>' + (isNext && sub ? '<p class="tiny" style="margin-top:3px">' + esc(sub) + '</p>' : '') +
-        (gather && !q.pending ? '<p class="tiny" style="margin-top:3px">參加後按「回報完成」，船長確認就打勾。</p>' : '') + '</div>' +
+        (gather && !q.pending ? '<p class="tiny" style="margin-top:3px">參加後按「我要挑戰」，船長確認就打勾。</p>' : '') + '</div>' +
         (isNext ? '<span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">' + (gather && !q.pending ? '<a class="btn" style="padding:6px 12px;font-size:12px;white-space:nowrap" href="' + esc(ev && ev.link ? ev.link : '/liff/news') + '"' + (ev && ev.link ? ' target="_blank" rel="noopener"' : ' data-nav') + '>報名</a>' : '') + reportBtn(q, gather) + '</span>' : (!q.done && q.pending ? pendingTag() : '')) + '</div>';
     });
     if (crewCircle || mq.list.length) {
       if (!mq.list.length) h += '<p class="tiny">這一季的任務還沒公布。</p>';
-      h += '</div>' + (crewCircle ? '<p class="tiny">沒有截止日，準備好再出發。完成後按「回報完成」，船長確認後才會打勾。</p>' : '<p class="tiny">完成後按「回報完成」，由船長或督導確認。</p>') + '</div>';
+      h += '</div>' + (crewCircle ? '<p class="tiny">沒有截止日，準備好再出發。按「我要挑戰」，船長確認後才會打勾。</p>' : '<p class="tiny">按「我要挑戰」，由船長或督導確認。</p>') + '</div>';
     }
     if (crewCircle) h += seriesBlock('SIDE QUEST・團契主題') + zoomBtn();
     var side = S.me.quests.filter(function (x) { return x.type === '支線'; }).sort(function (a, b) { return a.order - b.order; });
@@ -313,7 +313,7 @@
   }
   function reportBtn(q, ghost) {
     if (q.pending) return pendingTag();
-    return '<button class="btn' + (ghost ? ' ghost' : '') + '" style="padding:6px 12px;font-size:12px;white-space:nowrap" data-act="complete" data-id="' + q.id + '">回報完成</button>';
+    return '<button class="btn' + (ghost ? ' ghost' : '') + '" style="padding:6px 12px;font-size:12px;white-space:nowrap" data-act="complete" data-id="' + q.id + '">我要挑戰</button>';
   }
   function pendingTag() { return '<span class="tag" style="background:#FFF4D6;color:#9A7012;white-space:nowrap">待船長確認</span>'; }
   function entryCard() {
@@ -459,7 +459,7 @@
     var pend = S.me.pending || [];
     if (pend.length) {
       h += '<p style="font-size:13px;font-weight:700;color:#9A7012">待你確認（' + pend.length + '）</p>';
-      pend.forEach(function (p) { h += '<div class="row" style="border-color:#F2DFA6"><span class="avatar" style="background:#FFF4D6">' + esc((p.name || '?').slice(0, 1)) + '</span><span style="flex:1;min-width:0"><span style="display:block;font-size:14px;font-weight:700">' + esc(p.name) + '</span><span class="tiny">' + esc(p.quest) + '・' + esc(p.kind || '回報完成') + '</span></span><button class="btn" style="padding:6px 12px;font-size:12px" data-act="confirm" data-id="' + p.id + '" data-k="confirm">確認</button><button class="btn ghost" style="padding:6px 10px;font-size:12px" data-act="confirm" data-id="' + p.id + '" data-k="reject">退回</button></div>'; });
+      pend.forEach(function (p) { h += '<div class="row" style="border-color:#F2DFA6"><span class="avatar" style="background:#FFF4D6">' + esc((p.name || '?').slice(0, 1)) + '</span><span style="flex:1;min-width:0"><span style="display:block;font-size:14px;font-weight:700">' + esc(p.name) + '</span><span class="tiny">' + esc(p.quest) + '・' + esc(p.kind || '我要挑戰') + '</span></span><button class="btn" style="padding:6px 12px;font-size:12px" data-act="confirm" data-id="' + p.id + '" data-k="confirm">確認</button><button class="btn ghost" style="padding:6px 10px;font-size:12px" data-act="confirm" data-id="' + p.id + '" data-k="reject">退回</button></div>'; });
     }
     if (care.length) { h += '<p style="font-size:13px;font-weight:700;color:var(--brick)">需要你關心</p>'; care.forEach(function (c) { h += crewRow(c, true); }); }
     h += '<p style="font-size:13px;font-weight:700;color:var(--ink2)">我的船員</p>';
@@ -621,8 +621,8 @@
     else if (act === 'quiz') { quizAns = []; quizStep(); }
     else if (act === 'answer') { quizAns.push(+k); quizStep(); }
     else if (act === 'complete') {
-      el.disabled = true; el.textContent = '回報中…';
-      api('/api/complete', { method: 'POST', body: { questId: el.dataset.id } }).then(loadMe).catch(function (err) { el.disabled = false; el.textContent = '回報完成'; alert(err.message); });
+      el.disabled = true; el.textContent = '送出中…';
+      api('/api/complete', { method: 'POST', body: { questId: el.dataset.id } }).then(loadMe).catch(function (err) { el.disabled = false; el.textContent = '我要挑戰'; alert(err.message); });
     }
     else if (act === 'confirm') {
       el.disabled = true;
