@@ -179,8 +179,9 @@
     var m = S.me.member;
     if (!m) return '<div class="card"><p class="h2">你還沒有小船</p><p class="small" style="margin:6px 0 12px">做完三題小測驗，登上適合你的小船，航海日誌就會開始記錄你的航程。</p><button class="btn" data-act="quiz">開始測驗</button></div>';
     var boat = S.me.boat, color = boat ? boat.color : 'var(--brick)';
-    var h = '<div class="card" style="display:flex;gap:14px;align-items:center"><span class="avatar" style="width:56px;height:56px;background:' + esc(color) + ';color:#fff;font-size:20px">' + esc(m.name.slice(0, 1)) + '</span><div><p class="kicker" style="color:' + esc(color) + '">' + esc(boat ? boat.en : 'ON BOARD') + '</p><p class="h1" style="margin-top:2px">' + esc(m.name) + '</p><p class="small">' + esc((boat ? boat.name + '・' : '') + m.circle + (m.status ? '・' + m.status : '')) + '</p></div></div>';
-    if (boat && boat.captain) h += '<div class="card" style="display:flex;align-items:center;gap:12px"><span class="avatar" style="width:40px;height:40px;background:var(--gold)">' + esc(boat.captain.slice(0, 1)) + '</span><div style="flex:1"><p class="tiny">你的船長</p><p style="font-weight:700">' + esc(boat.captain) + (boat.sailors.length ? ' ＋ 水手 ' + esc(boat.sailors.join('、')) : '') + '</p></div></div>';
+    var days = m.joined ? Math.max(1, 1 - daysUntil(m.joined)) : 0;
+    var h = '<div class="card" style="display:flex;gap:14px;align-items:center">' + boatBadge(boat, 60) + '<div style="flex:1;min-width:0"><p class="kicker" style="color:' + esc(color) + '">' + esc(boat ? boat.en : 'ON BOARD') + '</p><p class="h1" style="margin-top:2px">' + esc(m.name) + '</p><p class="small">' + esc(boat ? boat.name : m.circle) + (days ? '・上船第 ' + days + ' 天' : '') + (m.status === '待船長聯繫' ? '・等船長打招呼' : '') + '</p></div></div>';
+    if (boat && boat.captain) h += '<div class="card" style="display:flex;align-items:center;gap:12px"><span class="avatar" style="width:40px;height:40px;background:var(--gold)">' + esc(boat.captain.slice(0, 1)) + '</span><div style="flex:1;min-width:0"><p class="tiny">你的船長</p><p style="font-weight:700">' + esc(boat.captain) + (boat.sailors.length ? ' ＋ 水手 ' + esc(boat.sailors.join('、')) : '') + '</p></div><a class="btn line" style="padding:8px 12px;font-size:13px;white-space:nowrap" href="' + esc(oaMessage('我是' + m.name + '（' + boat.name + '），想找船長' + boat.captain + '聊聊')) + '" target="_blank" rel="noopener">傳訊息</a></div>';
     if (m.status === '待船長聯繫') h += entryCard();
     h += introCard(m);
     var mq = mainQuest(), firstOpen = true;
@@ -188,14 +189,20 @@
     h += '<div class="bar"><i style="width:' + (mq.list.length ? Math.round(mq.done / mq.list.length * 100) : 0) + '%"></i></div><div class="steps">';
     mq.list.forEach(function (q) {
       var isNext = !q.done && firstOpen; if (isNext) firstOpen = false;
-      h += '<div class="step' + (isNext ? ' next' : '') + '"><span class="chk' + (q.done ? ' on' : '') + '"></span><div style="flex:1"><p style="font-size:14px;' + (isNext ? 'font-weight:700' : '') + '" class="' + (q.done ? 'done-text' : '') + '">' + esc(q.name) + '</p>' + (isNext && q.note ? '<p class="tiny" style="margin-top:3px">' + esc(q.note) + '</p>' : '') + '</div>' +
-        (isNext ? reportBtn(q, false) : (!q.done && q.pending ? pendingTag() : '')) + '</div>';
+      var gather = isNext && /聚會/.test((q.how || '') + q.name);
+      var ev = gather ? nextEvent() : null;
+      var sub = ev ? '下一站：' + fmtEvent(ev) : (q.note || '');
+      h += '<div class="step' + (isNext ? ' next' : '') + '"><span class="chk' + (q.done ? ' on' : '') + '"></span><div style="flex:1;min-width:0"><p style="font-size:14px;' + (isNext ? 'font-weight:700' : '') + '" class="' + (q.done ? 'done-text' : '') + '">' + esc(q.name) + '</p>' + (isNext && sub ? '<p class="tiny" style="margin-top:3px">' + esc(sub) + '</p>' : '') +
+        (gather && !q.pending ? '<p class="tiny" style="margin-top:3px">參加後按「回報完成」，船長確認就打勾。</p>' : '') + '</div>' +
+        (isNext ? '<span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">' + (gather && !q.pending ? '<a class="btn" style="padding:6px 12px;font-size:12px;white-space:nowrap" href="' + esc(ev && ev.link ? ev.link : '/liff/news') + '"' + (ev && ev.link ? ' target="_blank" rel="noopener"' : ' data-nav') + '>報名</a>' : '') + reportBtn(q, gather) + '</span>' : (!q.done && q.pending ? pendingTag() : '')) + '</div>';
     });
     if (!mq.list.length) h += '<p class="tiny">這一季的任務還沒公布。</p>';
     h += '</div>' + (m.circle === '小船船員' ? '<p class="tiny">沒有截止日，準備好再出發。完成後按「回報完成」，船長確認後才會打勾。</p>' : '<p class="tiny">完成後按「回報完成」，由船長或督導確認。</p>') + '</div>';
     var side = S.me.quests.filter(function (x) { return x.type === '支線'; }).sort(function (a, b) { return a.order - b.order; });
-    if (side.length) {
+    var drew = store('joy-bless-day') === todayKey();
+    {
       h += '<div class="card" style="display:flex;flex-direction:column;gap:10px"><p class="kicker" style="color:var(--brown)">SIDE QUEST・支線</p>';
+      h += '<a class="row" href="/liff/" data-nav style="text-decoration:none;color:inherit"><span style="flex:1;font-size:14px;font-weight:700">從漂流瓶抽一張祝福</span><span class="tiny" style="' + (drew ? 'color:#2F7A44;font-weight:700' : '') + '">' + (drew ? '今天已抽' : '每天一張') + '</span></a>';
       side.forEach(function (q) {
         var right = !q.done ? reportBtn(q, true)
           : q.badge && q.badge !== '無' ? '<span style="display:flex;gap:3px">' + [0, 1, 2].map(function (i) { return '<span class="dot" style="width:7px;height:7px;background:' + (i < q.done ? 'var(--brown)' : '#E6DECF') + '"></span>'; }).join('') + '</span>'
@@ -204,9 +211,43 @@
       });
       h += '</div>';
     }
+    h += badgeShelf(boat);
     return h;
   }
 
+  function todayKey() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+  function oaMessage(text) {
+    var id = (CFG.oaId || '@126rtjnb').replace(/^@?/, '@');
+    return 'https://line.me/R/oaMessage/' + encodeURIComponent(id) + '/?' + encodeURIComponent(text);
+  }
+  function nextEvent() {
+    var ev = S.events || [];
+    return ev.filter(function (e) { return e.featured; })[0] || ev[0] || null;
+  }
+  function fmtEvent(e) { var d = md(e.date); return d.m + '/' + d.d + '（' + d.wd.slice(1) + '）' + e.title + (e.kind ? '・' + e.kind : ''); }
+  // 小船徽章：三艘船各自的圖樣
+  function boatBadge(boat, size) {
+    var c = boat ? boat.color : '#B8503A', code = boat && boat.code;
+    var inner = code === 'grace' ? '<path d="M18 34c4-4 8-4 12 0s8 4 12 0" fill="none" stroke="#F5EDE1" stroke-width="4" stroke-linecap="round"/><path d="M18 26c4-4 8-4 12 0s8 4 12 0" fill="none" stroke="#F5EDE1" stroke-width="3" stroke-linecap="round" opacity=".6"/>'
+      : code === 'moses' ? '<path d="M20 18v24M40 18v24" stroke="#F5EDE1" stroke-width="5" stroke-linecap="round"/><path d="M30 20v20" stroke="#F5EDE1" stroke-width="2" stroke-dasharray="3 3"/>'
+      : '<circle cx="30" cy="30" r="10" fill="none" stroke="#F5EDE1" stroke-width="6"/><circle cx="30" cy="30" r="10" fill="none" stroke="#C2553A" stroke-width="6" stroke-dasharray="7.85 7.85"/>';
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 60 60" role="img" aria-label="' + esc(boat ? boat.name : '小船') + '徽章" style="flex-shrink:0"><circle cx="30" cy="30" r="28" fill="' + esc(c) + '"/><circle cx="30" cy="30" r="23" fill="none" stroke="#F5EDE1" stroke-width="1.5" stroke-dasharray="3 3"/>' + inner + '</svg>';
+  }
+  var BADGE_ICON = {
+    '靠港印記': '<path d="M26 15v20M19 30c2 5 12 5 14 0M21 19h10"/>',
+    '燈塔守望': '<path d="M22 36l2-18h4l2 18zM21 18h10"/>',
+    '漂流瓶故事': '<path d="M23 14h6v5l3 4v14H20V23l3-4z"/>'
+  };
+  function badgeShelf(boat) {
+    var list = S.me.badges || [];
+    var h = '<div style="display:flex;flex-direction:column;gap:8px"><p style="font-size:13px;font-weight:700;color:var(--ink2)">我的徽章</p><div style="display:flex;gap:10px;flex-wrap:wrap">';
+    if (boat) h += '<span title="' + esc(boat.name) + '新人徽章">' + boatBadge(boat, 52) + '</span>';
+    list.forEach(function (b) {
+      var on = b.done > 0;
+      h += '<svg width="52" height="52" viewBox="0 0 52 52" role="img" aria-label="' + esc(b.name) + (on ? '，已獲得' : '，未獲得：' + (b.note || '')) + '"><title>' + esc(b.name) + (on ? '' : '：' + (b.note || '')) + '</title><circle cx="26" cy="26" r="24" fill="' + (on ? '#8A5A34' : '#E6DECF') + '"/><g fill="none" stroke="' + (on ? '#F5EDE1' : '#B3A68F') + '" stroke-width="2.5">' + (BADGE_ICON[b.name] || '<circle cx="26" cy="26" r="8"/>') + '</g></svg>';
+    });
+    return h + '</div><p class="tiny">灰色的徽章登上大船後就能開始收集。</p></div>';
+  }
   function reportBtn(q, ghost) {
     if (q.pending) return pendingTag();
     return '<button class="btn' + (ghost ? ' ghost' : '') + '" style="padding:6px 12px;font-size:12px;white-space:nowrap" data-act="complete" data-id="' + q.id + '">回報完成</button>';
@@ -388,7 +429,7 @@
     var act = el.dataset.act, k = el.dataset.k;
     if (act === 'login') login();
     else if (act === 'relogin') relogin();
-    else if (act === 'bless') { var n = ((S.content && S.content.blessings) || []).length; if (n) { S.bless = n === 1 ? 0 : (S.bless < 0 ? Math.floor(Math.random() * n) : (S.bless + 1 + Math.floor(Math.random() * (n - 1))) % n); render(); } }
+    else if (act === 'bless') { store('joy-bless-day', todayKey()); var n = ((S.content && S.content.blessings) || []).length; if (n) { S.bless = n === 1 ? 0 : (S.bless < 0 ? Math.floor(Math.random() * n) : (S.bless + 1 + Math.floor(Math.random() * (n - 1))) % n); render(); } }
     else if (act === 'sheet') sheetFor(k);
     else if (act === 'close') closeSheet();
     else if (act === 'quiz') { quizAns = []; quizStep(); }

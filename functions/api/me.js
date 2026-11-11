@@ -47,6 +47,11 @@ export const onRequestGet = handle(async ({ env, request }) => {
       pending: !!pendingQ[id(q)],
     }));
 
+  // 徽章：所有設了徽章的任務（不分圈層），已確認完成就點亮
+  const badges = quests
+    .filter((q) => { const b = P.select(q, '徽章'); return b && b !== '無'; })
+    .map((q) => ({ name: P.select(q, '徽章'), note: P.text(q, 'LIFF 顯示說明'), done: doneCount[id(q)] || 0 }));
+
   // 所在的船與船長
   let boat = null;
   const boatId = boatOf(m, bm);
@@ -61,6 +66,7 @@ export const onRequestGet = handle(async ({ env, request }) => {
       name: P.title(b, '船名'),
       en: P.text(b, '英文名'),
       color: P.text(b, '主色') || '#B8503A',
+      code: P.select(b, '代碼'),
       captain: names[0] || '',
       sailors: names.slice(capIds.length).filter(Boolean),
       assigned: P.rel(m, '所屬小船').length > 0,
@@ -128,6 +134,7 @@ export const onRequestGet = handle(async ({ env, request }) => {
     },
     boat,
     quests: questList,
+    badges,
     crew,
     pending,
     entry: { url: ENTRY_GROUP_URL, msg: ENTRY_GROUP_MSG },

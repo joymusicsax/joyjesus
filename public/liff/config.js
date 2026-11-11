@@ -8,6 +8,7 @@ window.JOY_CONFIG = {
   },
   instagram: 'https://www.instagram.com/joyjesus_fellowship/',
   lineOA: 'https://lin.ee/rn4IiXA',
+  oaId: '@126rtjnb', // 官方帳號 ID：「傳訊息」會開啟官方帳號聊天室並預填訊息
 };
 (function () {
   var c = window.JOY_CONFIG, env = null;
