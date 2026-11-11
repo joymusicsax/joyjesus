@@ -61,9 +61,10 @@ h1,h2,h3,p{margin:0}
 .grip{width:40px;height:5px;border-radius:999px;background:var(--line);align-self:center}
 .x{border:0;background:#F3EBDD;border-radius:999px;width:34px;height:34px;font-size:18px;line-height:1}
 label.field{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700}
-label.field input,label.field textarea{border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;font-size:15px;font-weight:400;background:#fff}
+label.field input,label.field textarea,label.field select{border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;font-size:15px;font-weight:400;background:#fff}
 .empty{text-align:center;padding:24px 8px;color:var(--muted);font-size:14px}
 .spin{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--brick);border-radius:999px;margin:40px auto;animation:sp 1s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 .err{background:#FDF1EA;color:#8E3B29;border-radius:12px;padding:12px;font-size:14px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+label.field[hidden]{display:none}

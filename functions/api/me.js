@@ -124,7 +124,7 @@ export const onRequestGet = handle(async ({ env, request }) => {
       isSupervisor: sup,
       intro: P.text(m, '自我介紹'),
       introScope: P.select(m, '介紹公開範圍') || '只給船長',
-      region: P.select(m, '地區') || '',
+      region: P.text(m, '居住地區') || P.select(m, '地區') || '',
     },
     boat,
     quests: questList,

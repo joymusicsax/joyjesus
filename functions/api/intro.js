@@ -1,6 +1,6 @@
 // 自我介紹
 // GET  /api/intro — 船員介紹列表
-// POST /api/intro — 更新自己的自我介紹  body: { region, intro, scope }
+// POST /api/intro — 更新自己的自我介紹  body: { place, placeOther?, intro, scope }
 // 規則：
 //   暱稱＋居住地區：所有登船的團契成員都看得到
 //   詳細介紹（與所在小船）：本人選擇
@@ -8,7 +8,7 @@
 //   督導看得到全部
 // 送出自我介紹＝完成第一個任務「寫下你的自我介紹」
 import { DB, queryAll, updatePage, P, W, id, handle, json, verifyLine, findMember, readJson, HttpError,
-  boatMap, boatOf, captainBoats, isSupervisor, REGIONS, completeIntroQuest } from '../../lib/notion.js';
+  boatMap, boatOf, captainBoats, isSupervisor, parsePlace, completeIntroQuest } from '../../lib/notion.js';
 
 const SCOPES = ['只給船長', '同船', '全團契'];
 
@@ -35,7 +35,7 @@ export const onRequestGet = handle(async ({ env, request }) => {
       const intro = P.text(r, '自我介紹');
       return {
         name: P.title(r, '暱稱'),
-        region: P.select(r, '地區') || '',
+        region: P.text(r, '居住地區') || P.select(r, '地區') || '',
         intro: canSee ? intro : '',
         hidden: !canSee && !!intro,
         scope: canSee ? scope : '',
@@ -51,12 +51,13 @@ export const onRequestPost = handle(async ({ env, request }) => {
   const user = await verifyLine(env, request);
   const me = await findMember(env, user.userId);
   if (!me) throw new HttpError(403, '請先登上一艘小船');
-  const { intro, scope, region } = await readJson(request);
-  if (!REGIONS.includes(region)) throw new HttpError(400, '請選擇居住地區');
+  const { intro, scope, place, placeOther } = await readJson(request);
+  const loc = parsePlace(place, placeOther);
   if (!SCOPES.includes(scope)) throw new HttpError(400, '請選擇誰看得到');
   const text = String(intro || '').trim().slice(0, 500);
   await updatePage(env, id(me), {
-    '地區': W.select(region),
+    '居住地區': W.text(loc.place),
+    '地區': W.select(loc.area),
     '自我介紹': text ? W.text(text) : { rich_text: [] },
     '介紹公開範圍': W.select(scope),
   });

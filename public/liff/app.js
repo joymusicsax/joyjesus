@@ -184,7 +184,15 @@
     return '<div class="card" style="display:flex;flex-direction:column;gap:8px;background:#EAF4EC;border-color:#BFDCC6"><p class="kicker" style="color:#2F7A44">BOARDING PASS・登船邀請</p><p style="font-size:14px;line-height:1.7">' + esc(e.msg || '') + '</p><a class="btn line" style="align-self:flex-start" href="' + esc(e.url || '#') + '" target="_blank" rel="noopener">加入入口群組</a></div>';
   }
   var SCOPE_NOTE = { '只給船長': '只有你的船長看得到', '同船': '同一艘船的人看得到', '全團契': '所有登船的團契成員看得到' };
-  var REGIONS = ['北部', '中部', '南部', '東部', '海外'];
+  var PLACES = [
+    ['北部', ['台北市', '新北市', '基隆市', '桃園市', '新竹市', '新竹縣', '宜蘭縣']],
+    ['中部', ['苗栗縣', '台中市', '彰化縣', '南投縣', '雲林縣']],
+    ['南部', ['嘉義市', '嘉義縣', '台南市', '高雄市', '屏東縣']],
+    ['東部', ['花蓮縣', '台東縣']],
+    ['離島', ['澎湖縣', '金門縣', '連江縣']],
+    ['海外', ['馬來西亞', '香港', '新加坡', '中國', '澳洲', '美國', '加拿大', '其他']]
+  ];
+  var KNOWN = {}; PLACES.forEach(function (g) { g[1].forEach(function (p) { KNOWN[p] = 1; }); });
   function introCard(m) {
     return '<div class="card" style="display:flex;flex-direction:column;gap:8px"><div style="display:flex;justify-content:space-between;align-items:baseline"><p class="kicker" style="color:var(--teal)">HELLO・自我介紹</p><span class="tiny">詳細介紹：' + esc(SCOPE_NOTE[m.introScope] || '') + '</span></div>' +
       '<p class="small">居住地區：<b>' + esc(m.region || '還沒填') + '</b>　<span class="tiny">（暱稱和地區全團契看得到）</span></p>' +
@@ -193,8 +201,11 @@
   }
   function introFields(intro, scope, region) {
     scope = scope || '只給船長';
-    return '<fieldset style="border:0;padding:0;margin:0"><legend class="small" style="font-weight:700;margin-bottom:8px">居住地區 <span style="color:var(--brick)">*必填</span>　<span class="tiny" style="font-weight:400">和暱稱一起，全團契看得到</span></legend><div class="chips">' +
-      REGIONS.map(function (r) { return '<label class="chip" style="cursor:pointer"><input type="radio" name="region" value="' + r + '" required' + (r === region ? ' checked' : '') + ' style="accent-color:#B8503A;margin-right:4px">' + r + '</label>'; }).join('') + '</div></fieldset>' +
+    var isOther = !!region && !KNOWN[region];
+    var sel = isOther ? '其他' : (region || '');
+    return '<label class="field">居住地區 <span style="color:var(--brick)">*必填</span>　<span class="tiny" style="font-weight:400">和暱稱一起，全團契看得到</span><select name="place" required data-act-change="place"><option value="">請選擇縣市或國家</option>' +
+      PLACES.map(function (g) { return '<optgroup label="' + (g[0] === '海外' ? '海外' : '台灣・' + g[0]) + '">' + g[1].map(function (p) { return '<option' + (p === sel ? ' selected' : '') + '>' + p + '</option>'; }).join('') + '</optgroup>'; }).join('') +
+      '</select></label><label class="field" id="placeOtherWrap"' + (isOther ? '' : ' hidden') + '>請填寫國家或城市<input name="placeOther" maxlength="30" value="' + esc(isOther ? region : '') + '" placeholder="例如：英國・倫敦"></label>' +
       '<label class="field">詳細自我介紹<textarea name="intro" rows="4" maxlength="500" placeholder="想怎麼被稱呼、從哪裡來、最近在想什麼…寫多少都可以">' + esc(intro || '') + '</textarea></label>' +
       '<fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:8px"><legend class="small" style="font-weight:700;margin-bottom:6px">詳細介紹要給誰看？</legend>' +
       ['只給船長', '同船', '全團契'].map(function (k) { return '<label style="display:flex;align-items:center;gap:10px;font-size:14px"><input type="radio" name="scope" value="' + k + '"' + (k === scope ? ' checked' : '') + ' style="width:20px;height:20px;accent-color:#B8503A"><span><b>' + k + '</b>　<span class="tiny">' + SCOPE_NOTE[k] + '</span></span></label>'; }).join('') +
@@ -362,6 +373,11 @@
         '<form id="composeForm" style="display:flex;flex-direction:column;gap:12px"><label class="field">稱呼<input name="name" maxlength="30" placeholder="暱稱就好"></label><label class="field">' + (pray ? '代禱內容' : '你的問題') + '<textarea name="text" rows="4" maxlength="1000" required placeholder="' + (pray ? '想請大家為什麼禱告？' : '關於信仰、團契或聚會，什麼都可以問') + '"></textarea></label><label style="display:flex;align-items:center;gap:10px;font-size:14px"><input type="checkbox" name="anon" checked style="width:20px;height:20px;accent-color:#B8503A"> 匿名送出（顯示為「匿名旅人」）</label><button class="btn block" type="submit">送出</button></form>');
     }
   });
+  document.addEventListener('change', function (e) {
+    if (e.target.name !== 'place') return;
+    var w = document.getElementById('placeOtherWrap');
+    if (w) { w.hidden = e.target.value !== '其他'; if (!w.hidden) w.querySelector('input').focus(); }
+  });
   document.addEventListener('submit', function (e) {
     var f0 = e.target;
     if (f0.id === 'joinForm' || f0.id === 'introForm') {
@@ -370,9 +386,10 @@
       var b0 = f0.querySelector('button[type=submit]'), label = b0.textContent;
       var scopeEl = f0.querySelector('input[name=scope]:checked');
       var sc = scopeEl ? scopeEl.value : '只給船長';
-      var rg = f0.querySelector('input[name=region]:checked');
-      if (!rg) { alert('請選擇居住地區'); return; }
-      var body = { intro: f0.elements.intro.value, introScope: sc, scope: sc, region: rg.value };
+      var pl = f0.elements.place.value, po = (f0.elements.placeOther.value || '').trim();
+      if (!pl) { alert('請選擇居住地區'); return; }
+      if (pl === '其他' && !po) { alert('請填寫你住的國家或城市'); f0.elements.placeOther.focus(); return; }
+      var body = { intro: f0.elements.intro.value, introScope: sc, scope: sc, place: pl, placeOther: po };
       b0.disabled = true; b0.textContent = '送出中…';
       if (f0.id === 'joinForm') {
         body.boat = f0.dataset.boat;
