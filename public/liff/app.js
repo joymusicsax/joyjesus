@@ -325,24 +325,94 @@
       '</fieldset>';
   }
 
-  // ----- 聚會消息 -----
+  // ----- 聚會消息（活動行事曆）-----
+  var MONTH_ZH = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
   function viewNews() {
     if (!S.events) return spinner();
-    var ev = S.events;
+    var ev = S.events, h = '';
     var f = ev.filter(function (e) { return e.featured; })[0];
-    var h = '';
-    if (f) { var d = md(f.date), n = daysUntil(f.date); h += '<div class="hero"><div style="display:flex;justify-content:space-between"><p class="kicker" style="color:var(--gold)">NEXT PORT</p><p style="font-size:12px;color:#C9D3DF">' + (n > 0 ? '還有 <b style="font-family:Fraunces,serif;font-style:italic;font-size:20px;color:var(--gold)">' + n + '</b> 天' : '就是今天') + '</p></div><p style="font-size:22px;font-weight:900">' + esc(f.title) + '</p><p style="font-size:13px;color:#C9D3DF">' + d.m + '/' + d.d + '（' + d.wd.slice(1) + '）' + (f.kind ? '・' + esc(f.kind) + '聚會' : '') + '</p>' + (f.link ? '<a class="btn" style="background:var(--gold);color:var(--navy);align-self:flex-start;margin-top:6px" href="' + esc(f.link) + '" target="_blank" rel="noopener">看詳情</a>' : '') + '</div>'; }
-    h += '<div class="chips" role="group" aria-label="篩選聚會">' + [['all', '全部'], ['線上', '線上'], ['實體', '實體']].map(function (c) { return '<button class="chip" data-act="filter" data-k="' + c[0] + '" aria-pressed="' + (S.filter === c[0]) + '">' + c[1] + '</button>'; }).join('') + '</div>';
-    var list = ev.filter(function (e) { return S.filter === 'all' || e.kind === S.filter; });
-    if (!list.length) return h + '<p class="empty">目前沒有聚會消息。</p>';
-    var lastM = null;
-    list.forEach(function (e) {
-      var d = md(e.date), on = e.kind === '線上';
-      if (d.m !== lastM) { h += '<p style="font-size:13px;font-weight:700;color:var(--muted);margin-top:4px">' + d.m + ' 月</p>'; lastM = d.m; }
-      var inner = '<div class="date" style="background:' + (on ? '#EEF3FA' : '#F6EEE2') + ';color:' + (on ? '#2B5A8F' : '#8A5A34') + '"><b>' + d.d + '</b><span style="font-size:11px">' + d.wd + '</span></div><div style="flex:1;min-width:0"><p style="font-size:15px;font-weight:700">' + esc(e.title) + '</p><p class="tiny" style="margin-top:3px">' + esc(e.type || '') + '</p></div>' + (e.kind ? '<span class="tag" style="background:' + (on ? '#E3ECF7' : '#E3EFE3') + ';color:' + (on ? '#2B5A8F' : '#2F7A44') + '">' + esc(e.kind) + '</span>' : '');
-      h += e.link ? '<a class="row" href="' + esc(e.link) + '" target="_blank" rel="noopener" style="border-radius:16px;padding:12px">' + inner + '</a>' : '<div class="row" style="border-radius:16px;padding:12px">' + inner + '</div>';
+    if (f) { var d0 = md(f.date), n0 = daysUntil(f.date); h += '<button class="hero" data-act="event" data-id="' + f.id + '" style="border:0;text-align:left;font:inherit;cursor:pointer"><div style="display:flex;justify-content:space-between;width:100%"><p class="kicker" style="color:var(--gold)">NEXT PORT</p><p style="font-size:12px;color:#C9D3DF">' + (n0 > 0 ? '還有 <b style="font-family:Fraunces,serif;font-style:italic;font-size:20px;color:var(--gold)">' + n0 + '</b> 天' : '就是今天') + '</p></div><p style="font-size:22px;font-weight:900">' + esc(f.title) + '</p><p style="font-size:13px;color:#C9D3DF">' + d0.m + '/' + d0.d + '（' + d0.wd.slice(1) + '）' + (f.note ? '・' + esc(f.note) : '') + '</p><span style="font-size:13px;font-weight:700;color:var(--gold)">看詳情 ›</span></button>'; }
+    h += '<div style="text-align:center"><p class="kicker" style="color:#B07A2A">揪喜樂團契</p><p class="h1" style="margin-top:4px">聚會與活動行事曆</p><p class="tiny" style="margin-top:4px">點「＋ 加入我的日曆」，把聚會存到自己的手機日曆</p></div>';
+    h += '<div style="display:flex;justify-content:center;gap:14px;font-size:12px;color:var(--ink2)"><span><b style="color:var(--navy)">●</b> 聚會（線上／實體）</span><span><b style="color:#9A3B2B">★</b> 特別活動</span></div>';
+    if (!ev.length) return h + '<p class="empty">目前沒有聚會消息。</p>';
+    var months = [];
+    ev.forEach(function (e) { var k = e.date.slice(0, 7); if (months.indexOf(k) < 0) months.push(k); });
+    if (months.indexOf(S.newsMonth) < 0) S.newsMonth = months[0];
+    var mi = months.indexOf(S.newsMonth);
+    h += '<div class="chips" style="justify-content:center">' + months.map(function (k) { return '<button class="chip" data-act="month" data-k="' + k + '" aria-pressed="' + (k === S.newsMonth) + '"' + (k === S.newsMonth ? ' style="background:#B07A2A;border-color:#B07A2A;color:#fff"' : '') + '>' + (+k.slice(5)) + '月</button>'; }).join('') + '</div>';
+    var mm = +S.newsMonth.slice(5);
+    h += '<div class="card" style="display:flex;flex-direction:column;gap:0;padding:16px 18px">';
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:10px"><p><b style="font-family:Fraunces,serif;font-size:22px">' + mm + '</b> <span class="small">' + MONTH_ZH[mm - 1] + '月</span></p><span style="display:flex;gap:4px"><button class="x" data-act="month" data-k="' + (months[mi - 1] || '') + '"' + (mi > 0 ? '' : ' disabled style="opacity:.3"') + ' aria-label="上個月">‹</button><button class="x" data-act="month" data-k="' + (months[mi + 1] || '') + '"' + (mi < months.length - 1 ? '' : ' disabled style="opacity:.3"') + ' aria-label="下個月">›</button></span></div>';
+    var added = store('joy-cal') || {};
+    ev.filter(function (e) { return e.date.slice(0, 7) === S.newsMonth; }).forEach(function (e) {
+      var d = md(e.date), special = e.type === '團契活動', on = !!added[e.id];
+      h += '<div style="display:grid;grid-template-columns:44px 1fr;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)">' +
+        '<div><p style="font-family:Fraunces,serif;font-size:20px;line-height:1">' + d.d + '</p><p class="tiny" style="margin-top:3px">' + d.wd + '</p></div>' +
+        '<div style="min-width:0;display:flex;flex-direction:column;gap:3px">' +
+        '<button data-act="event" data-id="' + e.id + '" style="all:unset;cursor:pointer;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><span style="color:' + (special ? '#9A3B2B' : 'var(--navy)') + ';font-size:13px">' + (special ? '★' : '●') + '</span><b style="font-size:15px;color:' + (special ? '#9A3B2B' : 'var(--navy)') + '">' + esc(e.title) + '</b><span style="font-size:11px;font-weight:700;color:#B07A2A">詳情 ›</span></button>' +
+        (e.note ? '<p class="tiny">' + esc(e.note) + '</p>' : '') +
+        (e.kind ? '<p class="tiny">' + esc(e.kind) + '</p>' : '') +
+        (on ? '<button data-act="cal" data-id="' + e.id + '" style="all:unset;cursor:pointer;font-size:12px;font-weight:700;color:#2F7A44">✓ 已加入行事曆</button>'
+            : '<button data-act="cal" data-id="' + e.id + '" style="all:unset;cursor:pointer;font-size:12px;font-weight:700;color:#B07A2A">＋ 加入我的日曆</button>') +
+        '</div></div>';
     });
+    h += '</div>';
     return h + '<p class="tiny" style="text-align:center">時間地點以 LINE 群組公告為準</p>';
+  }
+  // 從備註解析時間（和伺服器 lib/time.js 相同規則）
+  function parseTimes(date, note) {
+    var m = String(note || '').match(/(\d{1,2}):(\d{2})(?:\s*[–\-~～至到]\s*(\d{1,2}):(\d{2}))?/);
+    if (!m) return { allDay: true, date: date };
+    var pad = function (n) { return ('0' + n).slice(-2); };
+    var sh = +m[1], sm = +m[2], eh = m[3] != null ? +m[3] : sh + 2, em = m[4] != null ? +m[4] : sm, ed = date;
+    if (eh >= 24 || eh < sh) { eh = eh % 24; var x = new Date(date + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + 1); ed = x.toISOString().slice(0, 10); }
+    return { allDay: false, start: date + 'T' + pad(sh) + ':' + pad(sm) + ':00', end: ed + 'T' + pad(eh) + ':' + pad(em) + ':00' };
+  }
+  function googleCalUrl(e) {
+    var t = parseTimes(e.date, e.note), dates;
+    if (t.allDay) { var x = new Date(e.date + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + 1); dates = e.date.replace(/-/g, '') + '/' + x.toISOString().slice(0, 10).replace(/-/g, ''); }
+    else dates = t.start.replace(/[-:]/g, '') + '/' + t.end.replace(/[-:]/g, '');
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent('揪喜樂｜' + e.title) + '&dates=' + dates + '&ctz=Asia/Taipei&details=' + encodeURIComponent((e.note ? e.note + '\n' : '') + '詳情：https://miniapp.line.me/2012557389-Jfp3TUw4/news');
+  }
+  function openExternal(url) {
+    if (window.liff && S.ready && liff.isInClient()) liff.openWindow({ url: url, external: true });
+    else window.open(url, '_blank', 'noopener');
+  }
+  function calSheet(e) {
+    var on = !!(store('joy-cal') || {})[e.id];
+    openSheet(head('ADD TO CALENDAR', '#B07A2A', e.title) + '<p class="small">' + fmtEvent(e) + (e.note ? '<br>' + esc(e.note) : '') + '</p>' +
+      '<button class="btn block" data-act="cal-go" data-k="google" data-id="' + e.id + '">加入 Google 日曆</button>' +
+      '<button class="btn ghost block" data-act="cal-go" data-k="ics" data-id="' + e.id + '">加入 iPhone／其他日曆（.ics）</button>' +
+      (on ? '<button class="btn ghost block" data-act="cal-undo" data-id="' + e.id + '" style="color:var(--muted)">取消「已加入」標記</button>' : '') +
+      '<p class="tiny">會在聚會前 1 小時提醒（.ics）。加入後這場聚會會顯示 ✓。</p>');
+  }
+  function eventSheet(id) {
+    var e = (S.events || []).filter(function (x) { return x.id === id; })[0] || { id: id, title: '', date: '' };
+    var dt = S.eventDetail && S.eventDetail[id];
+    var on = !!(store('joy-cal') || {})[id];
+    var h = head((e.type === '團契活動' ? '★ 特別活動' : '● 聚會') + (e.kind ? '・' + e.kind : ''), e.type === '團契活動' ? '#9A3B2B' : 'var(--navy)', (dt && dt.title) || e.title);
+    if (e.date) h += '<p class="small" style="font-weight:700">' + fmtEvent(e) + '</p>';
+    if (e.note) h += '<p class="small">' + esc(e.note) + '</p>';
+    if (!dt) h += spinner();
+    else {
+      if (dt.cover) h += '<img src="' + esc(dt.cover) + '" alt="" style="width:100%;border-radius:12px;max-height:220px;object-fit:cover">';
+      var who = [dt.speaker && '主講：' + dt.speaker, dt.host && '主持：' + dt.host].filter(Boolean).join('　');
+      if (who) h += '<p class="tiny">' + esc(who) + '</p>';
+      var body = dt.blocks.map(function (b) {
+        if (b.type === 'divider') return '<hr style="border:0;border-top:1px solid var(--line);margin:4px 0">';
+        if (b.type === 'image') return '<img src="' + esc(b.url) + '" alt="" style="width:100%;border-radius:12px">';
+        var tx = esc(b.text), st = 'font-size:14px;line-height:1.75;white-space:pre-wrap';
+        if (/^heading/.test(b.type)) return '<p style="font-size:16px;font-weight:900;margin-top:4px">' + tx + '</p>';
+        if (/list_item|to_do/.test(b.type)) return '<p style="' + st + ';padding-left:14px;text-indent:-10px">・' + tx + '</p>';
+        if (b.type === 'quote' || b.type === 'callout') return '<p style="' + st + ';background:#F6EEE2;border-radius:10px;padding:8px 10px">' + tx + '</p>';
+        return '<p style="' + st + '">' + tx + (b.link ? ' <a href="' + esc(b.link) + '" target="_blank" rel="noopener">連結</a>' : '') + '</p>';
+      }).join('');
+      h += body ? '<div style="display:flex;flex-direction:column;gap:6px;max-height:42vh;overflow:auto">' + body + '</div>' : '<p class="tiny">更多細節會在 LINE 群組公告。</p>';
+      if (dt.link) h += '<a class="btn ghost block" href="' + esc(dt.link) + '" target="_blank" rel="noopener">報名／活動連結</a>';
+    }
+    h += on ? '<button class="btn ghost block" data-act="cal" data-id="' + id + '" style="color:#2F7A44;border-color:#BFDCC6">✓ 已加入行事曆</button>'
+            : '<button class="btn block" style="background:#B07A2A" data-act="cal" data-id="' + id + '">＋ 加入我的日曆</button>';
+    openSheet(h);
   }
 
   // ----- 船員甲板／船長甲板 -----
@@ -525,7 +595,21 @@
       var mm = S.me && S.me.member;
       openSheet(head('HELLO', 'var(--teal)', '我的自我介紹') + '<form id="introForm" style="display:flex;flex-direction:column;gap:12px">' + introFields(mm && mm.intro, mm && mm.introScope, mm && mm.region) + '<button class="btn block" type="submit">儲存</button></form>');
     }
-    else if (act === 'filter') { S.filter = k; render(); }
+    else if (act === 'month') { if (k) { S.newsMonth = k; render(); } }
+    else if (act === 'event') {
+      var eid = el.dataset.id; S.eventDetail = S.eventDetail || {};
+      eventSheet(eid);
+      if (!S.eventDetail[eid]) api('/api/event?id=' + eid).then(function (j) { S.eventDetail[eid] = j; if (!$sheet.hidden) eventSheet(eid); })
+        .catch(function (err) { S.eventDetail[eid] = { blocks: [], title: '', error: err.message }; if (!$sheet.hidden) eventSheet(eid); });
+    }
+    else if (act === 'cal') { var ce = (S.events || []).filter(function (x) { return x.id === el.dataset.id; })[0]; if (ce) calSheet(ce); }
+    else if (act === 'cal-go') {
+      var ge = (S.events || []).filter(function (x) { return x.id === el.dataset.id; })[0]; if (!ge) return;
+      openExternal(k === 'google' ? googleCalUrl(ge) : location.origin + '/api/public/ics?id=' + ge.id);
+      var ad = store('joy-cal') || {}; ad[ge.id] = Date.now(); store('joy-cal', ad);
+      closeSheet(); render();
+    }
+    else if (act === 'cal-undo') { var ud = store('joy-cal') || {}; delete ud[el.dataset.id]; store('joy-cal', ud); closeSheet(); render(); }
     else if (act === 'kind') { S.boardKind = k; S.openThread = null; render(); }
     else if (act === 'deckmode') {
       e.preventDefault(); S.deckMode = k;

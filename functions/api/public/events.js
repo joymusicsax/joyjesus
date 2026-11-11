@@ -21,7 +21,8 @@ export const onRequestGet = handle(async ({ env }) => {
     kind: P.select(pg, '聚會形式'),        // 線上／實體／其他／null
     type: P.select(pg, 'Tags'),            // 團契內容／團契活動
     featured: P.check(pg, '顯示在下一站'),
-    link: P.text(pg, '網址') || null,
+    link: pg.properties['網址']?.url || P.text(pg, '網址') || null,
+    note: P.text(pg, '備註'),            // 時間・地點等，例如「21:00–22:30・地點請見 LINE 群組公告」
   }));
   return json({ events }, 200, 300);
 });
