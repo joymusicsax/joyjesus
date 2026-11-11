@@ -13,15 +13,30 @@
     var headers = { 'Content-Type': 'application/json' };
     if (S.token) headers.Authorization = 'Bearer ' + S.token;
     return fetch(path, { method: opts.method || 'GET', headers: headers, body: opts.body ? JSON.stringify(opts.body) : undefined })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error || '連線失敗，請稍後再試'); return j; }); });
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) {
+        if (r.status === 401 && S.token) { S.authFailed = true; }
+        if (!r.ok) throw new Error(j.error || '連線失敗，請稍後再試');
+        return j;
+      }); });
+  }
+  // LINE 的 ID token 大約一小時就過期；LIFF 會一直沿用快取的舊 token，所以要自己檢查
+  function tokenExpired(t) {
+    try { var p = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); return p.exp * 1000 < Date.now() + 60000; } catch (e) { return true; }
+  }
+  function relogin() {
+    if (!window.liff || !S.ready) { alert(S.error || '請在 LINE 裡打開這個頁面'); return; }
+    if (liff.isInClient()) { location.reload(); return; }
+    try { liff.logout(); } catch (e) {}
+    liff.login({ redirectUri: location.href });
   }
   var WD = ['日', '一', '二', '三', '四', '五', '六'];
   function md(d) { var x = new Date(d + 'T00:00:00+08:00'); return { m: x.getMonth() + 1, d: x.getDate(), wd: '週' + WD[x.getDay()] }; }
   function daysUntil(d) { var t = new Date(); t.setHours(0, 0, 0, 0); return Math.round((new Date(d + 'T00:00:00+08:00') - t) / 864e5); }
   function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } }
   function login() {
-    if (window.liff && S.ready && !liff.isLoggedIn()) liff.login({ redirectUri: location.href });
-    else alert('請在 LINE 裡打開這個頁面');
+    if (!window.liff || !S.ready) { alert(S.error || '登入元件還沒準備好，請重新整理或在 LINE 裡打開這個頁面'); return; }
+    if (!liff.isLoggedIn()) liff.login({ redirectUri: location.href });
+    else relogin();
   }
 
   // ---------- 啟動 ----------
@@ -30,7 +45,20 @@
     var p = hasLiff ? liff.init({ liffId: CFG.liffId }).then(function () {
       S.ready = true;
       S.loggedIn = liff.isLoggedIn();
-      if (S.loggedIn) S.token = liff.getIDToken();
+      if (S.loggedIn) {
+        var t = liff.getIDToken();
+        if (t && !tokenExpired(t)) S.token = t;
+        else if (!liff.isInClient()) {
+          // 外部瀏覽器的登入過期：登出，自動重新登入一次（同一個分頁只試一次，避免無限迴圈）
+          try { liff.logout(); } catch (e) {}
+          S.loggedIn = false;
+          var tried = false; try { tried = sessionStorage.getItem('joy_relogin') === '1'; sessionStorage.setItem('joy_relogin', '1'); } catch (e) {}
+          if (!tried) { liff.login({ redirectUri: location.href }); return; }
+        } else {
+          S.token = t;
+        }
+      }
+      if (S.token) { try { sessionStorage.removeItem('joy_relogin'); } catch (e) {} }
     }).catch(function (e) { S.error = 'LINE 初始化失敗：' + e.message; }) : Promise.resolve();
     p.then(function () {
       route();
@@ -40,6 +68,7 @@
     });
   }
   function loadMe() {
+    S.meError = null;
     return api('/api/me').then(function (j) { S.me = j; render(); }).catch(function (e) { S.meError = e.message; render(); });
   }
 
@@ -82,11 +111,15 @@
     var h = '<div><p class="h1">嗨，' + esc(name) + '</p><p class="tiny" style="margin-top:2px">今天也歡迎靠岸。</p></div>';
     h += blessCard() + mapCard();
     if (!S.loggedIn) h += '<div class="card"><p class="h2">用 LINE 登入，開始你的航程</p><p class="small" style="margin:6px 0 10px">航海日誌、聚會消息、船員甲板需要登入 LINE 才看得到。我們只會讀取你的 LINE 名稱。</p><button class="btn line" data-act="login">用 LINE 登入</button></div>';
+    else if (!S.me && S.meError) h += authErrCard();
     else if (!S.me) h += spinner();
     else if (!m) h += '<button class="card" data-act="quiz" style="text-align:left;display:flex;gap:12px;align-items:center;background:#FDF1EA;border-color:#F0C9B8"><span style="flex:1"><span class="h2" style="display:block">你還沒有小船</span><span class="small">三個問題，找到最適合你的入口。</span></span><span class="btn">開始</span></button>';
     else h += voyageCard();
     h += nextPortCard();
     return h;
+  }
+  function authErrCard() {
+    return '<div class="card" style="display:flex;flex-direction:column;gap:8px;border-color:#F0C9B8;background:#FDF1EA"><p class="h2">讀取你的資料時出了點問題</p><p class="small">' + esc(S.meError) + '</p><button class="btn line" style="align-self:flex-start" data-act="relogin">重新登入</button></div>';
   }
   function blessCard() {
     var list = (S.content && S.content.blessings) || [];
@@ -142,7 +175,7 @@
 
   // ----- 航海日誌 -----
   function viewLog() {
-    if (!S.me) return S.meError ? '<p class="err">' + esc(S.meError) + '</p>' : spinner();
+    if (!S.me) return S.meError ? authErrCard() : spinner();
     var m = S.me.member;
     if (!m) return '<div class="card"><p class="h2">你還沒有小船</p><p class="small" style="margin:6px 0 12px">做完三題小測驗，登上適合你的小船，航海日誌就會開始記錄你的航程。</p><button class="btn" data-act="quiz">開始測驗</button></div>';
     var boat = S.me.boat, color = boat ? boat.color : 'var(--brick)';
@@ -234,7 +267,7 @@
 
   // ----- 船員甲板／船長甲板 -----
   function viewDeck() {
-    if (!S.me) return S.meError ? '<p class="err">' + esc(S.meError) + '</p>' : spinner();
+    if (!S.me) return S.meError ? authErrCard() : spinner();
     var m = S.me.member;
     if (!m) return '<div class="card"><p class="h2">登上小船之後就能使用船員甲板</p><p class="small" style="margin:6px 0 12px">在這裡可以彼此代禱、提出問題，也可以匿名。</p><button class="btn" data-act="quiz">找到我的小船</button></div>';
     var lead = m.isCaptain || m.isSupervisor;
@@ -354,6 +387,7 @@
     if (el.hasAttribute('data-nav')) { e.preventDefault(); history.pushState(null, '', el.getAttribute('href')); route(); window.scrollTo(0, 0); return; }
     var act = el.dataset.act, k = el.dataset.k;
     if (act === 'login') login();
+    else if (act === 'relogin') relogin();
     else if (act === 'bless') { var n = ((S.content && S.content.blessings) || []).length; if (n) { S.bless = n === 1 ? 0 : (S.bless < 0 ? Math.floor(Math.random() * n) : (S.bless + 1 + Math.floor(Math.random() * (n - 1))) % n); render(); } }
     else if (act === 'sheet') sheetFor(k);
     else if (act === 'close') closeSheet();
