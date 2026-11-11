@@ -64,3 +64,16 @@ lib/notion.js            共用工具與 Notion 資料庫 ID
 - 匿名留言的稱呼一律存成「匿名旅人」，不記錄 LINE userId
 - 船長只看得到自己船上的船員
 - Notion 金鑰只存在 Cloudflare，不會出現在網頁或程式碼中
+
+## 登船、自我介紹與任務確認（2026-11 更新）
+
+- **登船**：新朋友做完測驗會先掛在測驗結果那艘船，畫面顯示入口群組邀請（https://line.me/ti/g/fA5EzTwWzr）。
+- **LINE@ 推播**（選用）：在 Cloudflare 加 Secret `LINE_OA_TOKEN`（官方帳號 Messaging API 的 Channel access token），登船時會推播入口群組邀請給新朋友，並通知該船船長。船長要先用 LIFF 登入過一次，成員名冊才有他的 LINE userId。
+- **自我介紹**：本人選擇「只給船長／同船／全團契」，顯示在船員甲板的「船員介紹」。督導看得到全部。
+- **任務**：船員按「回報完成」→ 完成紀錄「確認狀態＝待確認」→ 船長（或督導）在船長甲板按確認／退回。只有已確認的才算完成；在 Notion 手動新增、確認狀態留空的紀錄視為已確認。
+
+| API | 說明 |
+|---|---|
+| POST /api/complete | 船員回報完成（待確認） |
+| POST /api/confirm | 船長／督導確認或退回 |
+| GET/POST /api/intro | 讀取看得到的自我介紹／更新自己的 |

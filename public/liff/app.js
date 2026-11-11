@@ -66,7 +66,7 @@
       if (a.dataset.view === S.view) a.setAttribute('aria-current', 'page');
       a.classList.toggle('locked', a.hasAttribute('data-lock') && !S.loggedIn);
     });
-    var cap = S.me && S.me.member && S.me.member.isCaptain;
+    var cap = S.me && S.me.member && (S.me.member.isCaptain || S.me.member.isSupervisor);
     document.getElementById('deckLabel').textContent = cap ? '船長甲板' : '船員甲板';
     document.getElementById('topTitle').textContent = { map: '揪喜樂團契', log: '航海日誌', news: '聚會消息', deck: cap ? '船長甲板' : '船員甲板' }[S.view];
     var html = S.error ? '<p class="err">' + esc(S.error) + '</p>' : '';
@@ -148,21 +148,23 @@
     var boat = S.me.boat, color = boat ? boat.color : 'var(--brick)';
     var h = '<div class="card" style="display:flex;gap:14px;align-items:center"><span class="avatar" style="width:56px;height:56px;background:' + esc(color) + ';color:#fff;font-size:20px">' + esc(m.name.slice(0, 1)) + '</span><div><p class="kicker" style="color:' + esc(color) + '">' + esc(boat ? boat.en : 'ON BOARD') + '</p><p class="h1" style="margin-top:2px">' + esc(m.name) + '</p><p class="small">' + esc((boat ? boat.name + '・' : '') + m.circle + (m.status ? '・' + m.status : '')) + '</p></div></div>';
     if (boat && boat.captain) h += '<div class="card" style="display:flex;align-items:center;gap:12px"><span class="avatar" style="width:40px;height:40px;background:var(--gold)">' + esc(boat.captain.slice(0, 1)) + '</span><div style="flex:1"><p class="tiny">你的船長</p><p style="font-weight:700">' + esc(boat.captain) + (boat.sailors.length ? ' ＋ 水手 ' + esc(boat.sailors.join('、')) : '') + '</p></div></div>';
+    if (m.status === '待船長聯繫') h += entryCard();
+    h += introCard(m);
     var mq = mainQuest(), firstOpen = true;
     h += '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;justify-content:space-between;align-items:baseline"><div><p class="kicker" style="color:var(--brick)">MAIN QUEST・主線</p><p class="h2" style="margin-top:2px">' + esc(mq.title) + '</p></div><p style="font-family:Fraunces,serif;font-style:italic;font-size:22px;color:var(--brick)">' + mq.done + ' / ' + mq.list.length + '</p></div>';
     h += '<div class="bar"><i style="width:' + (mq.list.length ? Math.round(mq.done / mq.list.length * 100) : 0) + '%"></i></div><div class="steps">';
     mq.list.forEach(function (q) {
       var isNext = !q.done && firstOpen; if (isNext) firstOpen = false;
       h += '<div class="step' + (isNext ? ' next' : '') + '"><span class="chk' + (q.done ? ' on' : '') + '"></span><div style="flex:1"><p style="font-size:14px;' + (isNext ? 'font-weight:700' : '') + '" class="' + (q.done ? 'done-text' : '') + '">' + esc(q.name) + '</p>' + (isNext && q.note ? '<p class="tiny" style="margin-top:3px">' + esc(q.note) + '</p>' : '') + '</div>' +
-        (isNext && q.how === '本人勾選' ? '<button class="btn" style="padding:6px 12px;font-size:12px" data-act="complete" data-id="' + q.id + '">完成</button>' : '') + '</div>';
+        (isNext ? reportBtn(q, false) : (!q.done && q.pending ? pendingTag() : '')) + '</div>';
     });
     if (!mq.list.length) h += '<p class="tiny">這一季的任務還沒公布。</p>';
-    h += '</div>' + (m.circle === '小船船員' ? '<p class="tiny">沒有截止日，準備好再出發。</p>' : '<p class="tiny">聚會簽到後會自動完成這一關。</p>') + '</div>';
+    h += '</div>' + (m.circle === '小船船員' ? '<p class="tiny">沒有截止日，準備好再出發。完成後按「回報完成」，船長確認後才會打勾。</p>' : '<p class="tiny">完成後按「回報完成」，由船長或督導確認。</p>') + '</div>';
     var side = S.me.quests.filter(function (x) { return x.type === '支線'; }).sort(function (a, b) { return a.order - b.order; });
     if (side.length) {
       h += '<div class="card" style="display:flex;flex-direction:column;gap:10px"><p class="kicker" style="color:var(--brown)">SIDE QUEST・支線</p>';
       side.forEach(function (q) {
-        var right = q.how === '本人勾選' && !q.done ? '<button class="btn ghost" style="padding:5px 11px;font-size:12px" data-act="complete" data-id="' + q.id + '">完成</button>'
+        var right = !q.done ? reportBtn(q, true)
           : q.badge && q.badge !== '無' ? '<span style="display:flex;gap:3px">' + [0, 1, 2].map(function (i) { return '<span class="dot" style="width:7px;height:7px;background:' + (i < q.done ? 'var(--brown)' : '#E6DECF') + '"></span>'; }).join('') + '</span>'
           : '<span class="tiny">' + (q.done ? '已完成' : '未開始') + '</span>';
         h += '<div class="row"><span style="flex:1"><span style="display:block;font-size:14px;font-weight:700">' + esc(q.name) + '</span>' + (q.note ? '<span class="tiny">' + esc(q.note) + '</span>' : '') + '</span>' + right + '</div>';
@@ -170,6 +172,29 @@
       h += '</div>';
     }
     return h;
+  }
+
+  function reportBtn(q, ghost) {
+    if (q.pending) return pendingTag();
+    return '<button class="btn' + (ghost ? ' ghost' : '') + '" style="padding:6px 12px;font-size:12px;white-space:nowrap" data-act="complete" data-id="' + q.id + '">回報完成</button>';
+  }
+  function pendingTag() { return '<span class="tag" style="background:#FFF4D6;color:#9A7012;white-space:nowrap">待船長確認</span>'; }
+  function entryCard() {
+    var e = S.me.entry || {};
+    return '<div class="card" style="display:flex;flex-direction:column;gap:8px;background:#EAF4EC;border-color:#BFDCC6"><p class="kicker" style="color:#2F7A44">BOARDING PASS・登船邀請</p><p style="font-size:14px;line-height:1.7">' + esc(e.msg || '') + '</p><a class="btn line" style="align-self:flex-start" href="' + esc(e.url || '#') + '" target="_blank" rel="noopener">加入入口群組</a></div>';
+  }
+  var SCOPE_NOTE = { '只給船長': '只有你的船長看得到', '同船': '同一艘船的人看得到', '全團契': '所有登船的團契成員看得到' };
+  function introCard(m) {
+    return '<div class="card" style="display:flex;flex-direction:column;gap:8px"><div style="display:flex;justify-content:space-between;align-items:baseline"><p class="kicker" style="color:var(--teal)">HELLO・自我介紹</p><span class="tiny">' + esc(SCOPE_NOTE[m.introScope] || '') + '</span></div>' +
+      (m.intro ? '<p style="font-size:14px;line-height:1.75;white-space:pre-wrap">' + esc(m.intro) + '</p>' : '<p class="small">還沒寫自我介紹。想讓船長和船員怎麼認識你？</p>') +
+      '<button class="btn ghost" style="align-self:flex-start;padding:6px 12px;font-size:12px" data-act="intro-edit">' + (m.intro ? '編輯' : '寫自我介紹') + '</button></div>';
+  }
+  function introFields(intro, scope) {
+    scope = scope || '只給船長';
+    return '<label class="field">自我介紹（選填）<textarea name="intro" rows="4" maxlength="500" placeholder="想怎麼被稱呼、從哪裡來、最近在想什麼…寫多少都可以">' + esc(intro || '') + '</textarea></label>' +
+      '<fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:8px"><legend class="small" style="font-weight:700;margin-bottom:6px">誰可以看到我的介紹？</legend>' +
+      ['只給船長', '同船', '全團契'].map(function (k) { return '<label style="display:flex;align-items:center;gap:10px;font-size:14px"><input type="radio" name="scope" value="' + k + '"' + (k === scope ? ' checked' : '') + ' style="width:20px;height:20px;accent-color:#B8503A"><span><b>' + k + '</b>　<span class="tiny">' + SCOPE_NOTE[k] + '</span></span></label>'; }).join('') +
+      '</fieldset>';
   }
 
   // ----- 聚會消息 -----
@@ -197,21 +222,27 @@
     if (!S.me) return S.meError ? '<p class="err">' + esc(S.meError) + '</p>' : spinner();
     var m = S.me.member;
     if (!m) return '<div class="card"><p class="h2">登上小船之後就能使用船員甲板</p><p class="small" style="margin:6px 0 12px">在這裡可以彼此代禱、提出問題，也可以匿名。</p><button class="btn" data-act="quiz">找到我的小船</button></div>';
-    if (m.isCaptain && S.deckMode !== 'board') return viewCaptain();
-    return viewBoard(m.isCaptain);
+    var lead = m.isCaptain || m.isSupervisor;
+    if (lead && S.deckMode !== 'board') return viewCaptain();
+    return viewBoard(lead);
   }
   function viewCaptain() {
     var crew = S.me.crew || [];
     var week = crew.filter(function (c) { return c.joined && daysUntil(c.joined) > -8; }).length;
     var care = crew.filter(function (c) { return c.needsCare; });
     var boatNames = S.me.boat ? S.me.boat.name : '';
-    var h = '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div><p class="kicker" style="color:#9A7012">CAPTAIN\'S DECK</p><p class="h2" style="margin-top:2px">' + esc(S.me.member.name) + ' 船長</p><p class="small">' + esc(boatNames) + '</p></div>' +
+    var h = '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div><p class="kicker" style="color:#9A7012">CAPTAIN\'S DECK</p><p class="h2" style="margin-top:2px">' + esc(S.me.member.name) + (S.me.member.isCaptain ? ' 船長' : ' 督導') + '</p><p class="small">' + esc(boatNames) + '</p></div>' +
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' + [[crew.length, '船員', ''], [week, '本週新上船', ''], [care.length, '需要你關心', 'color:var(--brick)']].map(function (x) { return '<div style="background:#F6EEE2;border-radius:12px;padding:10px;text-align:center"><p style="font-family:Fraunces,serif;font-style:italic;font-size:24px;' + x[2] + '">' + x[0] + '</p><p style="font-size:11px;' + x[2] + '">' + x[1] + '</p></div>'; }).join('') + '</div></div>';
+    var pend = S.me.pending || [];
+    if (pend.length) {
+      h += '<p style="font-size:13px;font-weight:700;color:#9A7012">待你確認（' + pend.length + '）</p>';
+      pend.forEach(function (p) { h += '<div class="row" style="border-color:#F2DFA6"><span class="avatar" style="background:#FFF4D6">' + esc((p.name || '?').slice(0, 1)) + '</span><span style="flex:1;min-width:0"><span style="display:block;font-size:14px;font-weight:700">' + esc(p.name) + '</span><span class="tiny">' + esc(p.quest) + (p.date ? '・' + esc(p.date) + ' 回報' : '') + '</span></span><button class="btn" style="padding:6px 12px;font-size:12px" data-act="confirm" data-id="' + p.id + '" data-k="confirm">確認</button><button class="btn ghost" style="padding:6px 10px;font-size:12px" data-act="confirm" data-id="' + p.id + '" data-k="reject">退回</button></div>'; });
+    }
     if (care.length) { h += '<p style="font-size:13px;font-weight:700;color:var(--brick)">需要你關心</p>'; care.forEach(function (c) { h += crewRow(c, true); }); }
     h += '<p style="font-size:13px;font-weight:700;color:var(--ink2)">我的船員</p>';
     h += crew.length ? crew.map(function (c) { return crewRow(c, false); }).join('') : '<p class="empty">還沒有船員登船。</p>';
-    h += '<button class="btn ghost block" data-act="deckmode" data-k="board">看代禱與提問板</button>';
-    h += '<p class="tiny" style="background:#F6EEE2;border-radius:12px;padding:12px;line-height:1.7">你只看得到自己船上的船員。關懷紀錄請在 Notion「成員名冊」更新「最後互動日」。</p>';
+    h += '<button class="btn ghost block" data-act="deckmode" data-k="board">看代禱、提問與船員介紹</button>';
+    h += '<p class="tiny" style="background:#F6EEE2;border-radius:12px;padding:12px;line-height:1.7">你只看得到自己船上的船員。新船員會先進入口群組，請邀請他加入你的小船群組。確認任務時會自動更新「最後互動日」。</p>';
     return h;
   }
   function crewRow(c, careMode) {
@@ -222,7 +253,8 @@
     var h = '';
     if (isCaptain) h += '<button class="btn ghost" style="align-self:flex-start" data-act="deckmode" data-k="captain">← 回船長甲板</button>';
     h += '<div><p class="kicker" style="color:var(--brick)">CREW DECK</p><p class="h1" style="margin-top:3px">在甲板上，彼此守望</p><p class="small" style="margin-top:4px">可以匿名。只有團契成員看得到這裡的內容。</p></div>';
-    h += '<div class="seg" role="tablist"><button role="tab" data-act="kind" data-k="pray" aria-selected="' + (S.boardKind === 'pray') + '">代禱事項</button><button role="tab" data-act="kind" data-k="ask" aria-selected="' + (S.boardKind === 'ask') + '">提問板</button></div>';
+    h += '<div class="seg" role="tablist"><button role="tab" data-act="kind" data-k="pray" aria-selected="' + (S.boardKind === 'pray') + '">代禱事項</button><button role="tab" data-act="kind" data-k="ask" aria-selected="' + (S.boardKind === 'ask') + '">提問板</button><button role="tab" data-act="kind" data-k="intro" aria-selected="' + (S.boardKind === 'intro') + '">船員介紹</button></div>';
+    if (S.boardKind === 'intro') return h + viewIntros();
     var b = S.board && S.board.kind === S.boardKind ? S.board : null;
     if (!b) { loadBoard(); return h + spinner(); }
     var hearted = store('joy-hearted') || {};
@@ -234,6 +266,17 @@
     }).join('') : '<p class="empty">' + (pray ? '還沒有代禱事項。' : '還沒有人發問。') + '</p>';
     h += '<button class="btn dark fab" data-act="compose">＋ ' + (pray ? '寫下代禱' : '我要發問') + '</button>';
     return h;
+  }
+  function viewIntros() {
+    if (!S.intros) {
+      if (!S.introLoading) { S.introLoading = true; api('/api/intro').then(function (j) { S.intros = j.intros; S.introLoading = false; render(); }).catch(function (e) { S.introLoading = false; S.intros = []; S.meError = e.message; render(); }); }
+      return spinner();
+    }
+    var h = '<p class="tiny">每個人自己決定介紹給誰看：只給船長、同船，或全團契。</p>';
+    h += S.intros.length ? S.intros.map(function (p) {
+      return '<article class="card post"><div style="display:flex;align-items:center;gap:10px"><span class="avatar" style="background:#DCE6F2">' + esc((p.name || '?').slice(0, 1)) + '</span><div style="flex:1"><p style="font-size:14px;font-weight:700">' + esc(p.name) + (p.mine ? '（我）' : '') + '</p><p class="tiny">' + esc((p.boat ? p.boat + '・' : '') + p.scope) + '</p></div></div><p class="text" style="white-space:pre-wrap">' + esc(p.intro) + '</p></article>';
+    }).join('') : '<p class="empty">還沒有看得到的自我介紹。</p>';
+    return h + '<button class="btn dark fab" data-act="intro-edit">＋ 寫／改我的介紹</button>';
   }
   function loadBoard() {
     if (S.boardLoading === S.boardKind) return;
@@ -271,7 +314,7 @@
     var cnt = [0, 0, 0]; quizAns.forEach(function (a) { cnt[a]++; });
     var max = Math.max.apply(null, cnt), r = cnt[quizAns[0]] === max ? quizAns[0] : cnt.indexOf(max);
     var info = ((S.content && S.content.boats) || []).filter(function (b) { return b.name === BOATS[r]; })[0] || { name: BOATS[r], en: '', color: '#B8503A', result: '' };
-    openSheet(head('YOUR BOAT', esc(info.color), info.name) + '<p class="small">' + esc(info.result) + '</p><p class="tiny">登船後，船長會在 24 小時內親自跟你打招呼。</p><button class="btn dark block" data-act="board-boat" data-k="' + esc(info.name) + '">登上這艘船</button><button class="btn ghost block" data-act="quiz">重新測一次</button>');
+    openSheet(head('YOUR BOAT', esc(info.color), info.name) + '<p class="small">' + esc(info.result) + '</p><p class="tiny">登船後會先邀請你進入口群組，再由船長邀請你進小船群組。</p><form id="joinForm" data-boat="' + esc(info.name) + '" style="display:flex;flex-direction:column;gap:12px">' + introFields('', '只給船長') + '<button class="btn dark block" type="submit">登上這艘船</button></form><button class="btn ghost block" data-act="quiz">重新測一次</button>');
   }
 
   // ---------- 事件 ----------
@@ -285,15 +328,17 @@
     else if (act === 'close') closeSheet();
     else if (act === 'quiz') { quizAns = []; quizStep(); }
     else if (act === 'answer') { quizAns.push(+k); quizStep(); }
-    else if (act === 'board-boat') {
-      if (!S.loggedIn) return login();
-      el.disabled = true; el.textContent = '登船中…';
-      api('/api/join', { method: 'POST', body: { boat: k } }).then(function () { closeSheet(); return loadMe(); })
-        .catch(function (err) { el.disabled = false; el.textContent = '登上這艘船'; alert(err.message); });
-    }
     else if (act === 'complete') {
+      el.disabled = true; el.textContent = '回報中…';
+      api('/api/complete', { method: 'POST', body: { questId: el.dataset.id } }).then(loadMe).catch(function (err) { el.disabled = false; el.textContent = '回報完成'; alert(err.message); });
+    }
+    else if (act === 'confirm') {
       el.disabled = true;
-      api('/api/complete', { method: 'POST', body: { questId: el.dataset.id } }).then(loadMe).catch(function (err) { el.disabled = false; alert(err.message); });
+      api('/api/confirm', { method: 'POST', body: { logId: el.dataset.id, action: k } }).then(loadMe).catch(function (err) { el.disabled = false; alert(err.message); });
+    }
+    else if (act === 'intro-edit') {
+      var mm = S.me && S.me.member;
+      openSheet(head('HELLO', 'var(--teal)', '我的自我介紹') + '<form id="introForm" style="display:flex;flex-direction:column;gap:12px">' + introFields(mm && mm.intro, mm && mm.introScope) + '<button class="btn block" type="submit">儲存</button></form>');
     }
     else if (act === 'filter') { S.filter = k; render(); }
     else if (act === 'kind') { S.boardKind = k; render(); }
@@ -313,6 +358,27 @@
     }
   });
   document.addEventListener('submit', function (e) {
+    var f0 = e.target;
+    if (f0.id === 'joinForm' || f0.id === 'introForm') {
+      e.preventDefault();
+      if (!S.loggedIn) return login();
+      var b0 = f0.querySelector('button[type=submit]'), label = b0.textContent;
+      var scopeEl = f0.querySelector('input[name=scope]:checked');
+      var sc = scopeEl ? scopeEl.value : '只給船長';
+      var body = { intro: f0.elements.intro.value, introScope: sc, scope: sc };
+      b0.disabled = true; b0.textContent = '送出中…';
+      if (f0.id === 'joinForm') {
+        body.boat = f0.dataset.boat;
+        api('/api/join', { method: 'POST', body: body }).then(function (j) {
+          openSheet(head('WELCOME ABOARD', '#2F7A44', '歡迎登船！') + '<p style="font-size:15px;line-height:1.8">' + esc(j.groupMsg || '') + '</p><a class="btn line block" href="' + esc(j.groupUrl || '#') + '" target="_blank" rel="noopener">加入入口群組</a><p class="tiny">揪喜樂 LINE@ 也會傳一則提醒給你。如果沒收到，記得先把官方帳號加為好友。</p><button class="btn ghost block" data-act="close">先逛逛航海日誌</button>');
+          return loadMe();
+        }).catch(function (err) { b0.disabled = false; b0.textContent = label; alert(err.message); });
+      } else {
+        api('/api/intro', { method: 'POST', body: body }).then(function () { closeSheet(); S.intros = null; return loadMe(); })
+          .catch(function (err) { b0.disabled = false; b0.textContent = label; alert(err.message); });
+      }
+      return;
+    }
     if (e.target.id !== 'composeForm') return;
     e.preventDefault();
     var f = e.target, btn = f.querySelector('button[type=submit]');
