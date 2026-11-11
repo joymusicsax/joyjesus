@@ -277,7 +277,7 @@
     h += b.posts.length ? b.posts.map(function (p) {
       var on = !!hearted[p.id];
       var t = new Date(p.time);
-      return '<article class="card post"><div style="display:flex;align-items:center;gap:10px"><span class="avatar" style="background:' + (p.anon ? '#F6EEE2' : '#DCE6F2') + '">' + esc(p.anon ? '匿' : p.name.slice(0, 1)) + '</span><div><p style="font-size:14px;font-weight:700">' + esc(p.name) + '</p><p class="tiny">' + (t.getMonth() + 1) + '/' + t.getDate() + '</p></div></div><p class="text">' + esc(p.text) + '</p><div style="display:flex;align-items:center;gap:10px"><button class="heart" data-act="heart" data-id="' + p.id + '" aria-pressed="' + on + '"' + (on ? ' disabled' : '') + '>♥ ' + (pray ? (on ? '已為你禱告' : '為你禱告') : '我也想知道') + ' ' + p.hearts + '</button><span class="tiny">' + (p.replies ? p.replies + (pray ? ' 則回應' : ' 則回覆') : '還沒有回應') + '</span></div></article>';
+      return '<article class="card post"><div style="display:flex;align-items:center;gap:10px"><span class="avatar" style="background:' + (p.anon ? '#F6EEE2' : '#DCE6F2') + '">' + esc(p.anon ? '匿' : p.name.slice(0, 1)) + '</span><div><p style="font-size:14px;font-weight:700">' + esc(p.name) + '</p><p class="tiny">' + (t.getMonth() + 1) + '/' + t.getDate() + '</p></div></div><p class="text">' + esc(p.text) + '</p><div style="display:flex;align-items:center;gap:10px"><button class="heart" data-act="heart" data-id="' + p.id + '" aria-pressed="' + on + '"' + (on ? ' disabled' : '') + '>♥ ' + (pray ? (on ? '已為你禱告' : '為你禱告') : '我也想知道') + ' ' + p.hearts + '</button><button class="heart" data-act="thread" data-id="' + p.id + '" aria-expanded="' + (S.openThread === p.id) + '">💬 ' + (p.replies ? p.replies + ' 則' + (pray ? '回應' : '回覆') : (pray ? '回應' : '回覆')) + '</button></div>' + (S.openThread === p.id ? threadHtml(p.id, pray) : '') + '</article>';
     }).join('') : '<p class="empty">' + (pray ? '還沒有代禱事項。' : '還沒有人發問。') + '</p>';
     h += '<button class="btn dark fab" data-act="compose">＋ ' + (pray ? '寫下代禱' : '我要發問') + '</button>';
     return h;
@@ -293,6 +293,21 @@
         (p.intro ? '<p class="text" style="white-space:pre-wrap">' + esc(p.intro) + '</p>' : p.hidden ? '<p class="tiny">🔒 詳細介紹只給特定的人看</p>' : '') + '</article>';
     }).join('') : '<p class="empty">還沒有船員。</p>';
     return h + '<button class="btn dark fab" data-act="intro-edit">＋ 寫／改我的介紹</button>';
+  }
+  function threadHtml(postId, pray) {
+    var t = (S.threads || {})[postId];
+    var h = '<div class="thread" style="border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:10px">';
+    if (!t) h += spinner();
+    else h += t.length ? t.map(function (r) { var d = new Date(r.time); return '<div style="display:flex;gap:8px"><span class="avatar" style="width:28px;height:28px;font-size:12px;background:' + (r.anon ? '#F6EEE2' : '#DCE6F2') + '">' + esc(r.anon ? '匿' : r.name.slice(0, 1)) + '</span><div style="flex:1;background:#F8F4EC;border-radius:12px;padding:8px 10px"><p style="font-size:12px;font-weight:700">' + esc(r.name) + ' <span class="tiny" style="font-weight:400">' + (d.getMonth() + 1) + '/' + d.getDate() + '</span></p><p style="font-size:14px;line-height:1.7;white-space:pre-wrap">' + esc(r.text) + '</p></div></div>'; }).join('') : '<p class="tiny">還沒有人' + (pray ? '回應' : '回覆') + '，成為第一個吧。</p>';
+    h += '<form class="replyForm" data-post="' + postId + '" style="display:flex;flex-direction:column;gap:8px"><textarea name="text" rows="2" maxlength="1000" required placeholder="' + (pray ? '寫下你的祝福或禱告…' : '寫下你的想法或回答…') + '" style="border:1px solid var(--line);border-radius:12px;padding:10px;font:inherit;font-size:14px"></textarea>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input name="name" maxlength="30" placeholder="稱呼（不匿名時顯示）" style="flex:1;min-width:120px;border:1px solid var(--line);border-radius:999px;padding:7px 12px;font:inherit;font-size:13px"><label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" name="anon" checked style="width:18px;height:18px;accent-color:#B8503A">匿名</label><button class="btn" type="submit" style="padding:7px 14px;font-size:13px">送出</button></div></form>';
+    return h + '</div>';
+  }
+  function loadThread(postId) {
+    S.threads = S.threads || {};
+    delete S.threads[postId];
+    return api('/api/board/replies?post=' + postId).then(function (j) { S.threads[postId] = j.replies; render(); })
+      .catch(function (e) { S.threads[postId] = []; alert(e.message); render(); });
   }
   function loadBoard() {
     if (S.boardLoading === S.boardKind) return;
@@ -357,8 +372,14 @@
       openSheet(head('HELLO', 'var(--teal)', '我的自我介紹') + '<form id="introForm" style="display:flex;flex-direction:column;gap:12px">' + introFields(mm && mm.intro, mm && mm.introScope, mm && mm.region) + '<button class="btn block" type="submit">儲存</button></form>');
     }
     else if (act === 'filter') { S.filter = k; render(); }
-    else if (act === 'kind') { S.boardKind = k; render(); }
+    else if (act === 'kind') { S.boardKind = k; S.openThread = null; render(); }
     else if (act === 'deckmode') { S.deckMode = k; render(); }
+    else if (act === 'thread') {
+      var pid = el.dataset.id;
+      S.openThread = S.openThread === pid ? null : pid;
+      render();
+      if (S.openThread && !(S.threads && S.threads[pid])) loadThread(pid);
+    }
     else if (act === 'heart') {
       var hearted = store('joy-hearted') || {}; if (hearted[el.dataset.id]) return;
       el.disabled = true;
@@ -401,6 +422,19 @@
         api('/api/intro', { method: 'POST', body: body }).then(function () { closeSheet(); S.intros = null; return loadMe(); })
           .catch(function (err) { b0.disabled = false; b0.textContent = label; alert(err.message); });
       }
+      return;
+    }
+    if (f0.classList.contains('replyForm')) {
+      e.preventDefault();
+      var rb = f0.querySelector('button[type=submit]'), pid = f0.dataset.post;
+      var txt = f0.elements.text.value.trim(); if (!txt) return;
+      rb.disabled = true; rb.textContent = '送出中…';
+      api('/api/board/replies', { method: 'POST', body: { post: pid, text: txt, name: f0.elements.name.value, anon: f0.elements.anon.checked } })
+        .then(function () {
+          (S.board.posts || []).forEach(function (p) { if (p.id === pid) p.replies++; });
+          return loadThread(pid);
+        })
+        .catch(function (err) { rb.disabled = false; rb.textContent = '送出'; alert(err.message); });
       return;
     }
     if (e.target.id !== 'composeForm') return;
