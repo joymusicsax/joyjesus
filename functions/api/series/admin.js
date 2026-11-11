@@ -2,7 +2,7 @@
 // GET  /api/series/admin — 最近的系列
 // POST /api/series/admin — 新增或更新  body: { id?, name, subtitle, weeks: [{date, topic}], current }
 import { DB, notion, queryAll, createPage, updatePage, W, id, handle, json, verifyLine, findMember, readJson, HttpError,
-  isSupervisor, readSeries } from '../../../lib/notion.js';
+  isSupervisor, readSeries, seriesRoster } from '../../../lib/notion.js';
 
 export async function requireSupervisor(env, request) {
   const user = await verifyLine(env, request);
@@ -14,7 +14,10 @@ export async function requireSupervisor(env, request) {
 export const onRequestGet = handle(async ({ env, request }) => {
   await requireSupervisor(env, request);
   const r = await notion(env, `databases/${DB.series}/query`, { sorts: [{ timestamp: 'created_time', direction: 'descending' }], page_size: 12 });
-  return json({ series: r.results.map(readSeries) });
+  const series = r.results.map(readSeries);
+  // 目前系列附上每次聚會的舉手名單
+  await Promise.all(series.filter((x) => x.current).map(async (x) => { x.roster = await seriesRoster(env, x.id); }));
+  return json({ series });
 });
 
 const okDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''));

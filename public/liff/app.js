@@ -272,19 +272,21 @@
       : '<div style="aspect-ratio:16/9;background:linear-gradient(135deg,#16233B,#2F6F78);display:flex;align-items:flex-end;padding:16px;box-sizing:border-box"><p style="color:#fff;font-size:26px;font-weight:900">' + esc(sr.name) + '</p></div>';
     h += '<div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><div style="min-width:0"><p class="kicker" style="color:var(--brick)">' + esc(kicker) + '</p><p class="h2" style="margin-top:2px">' + esc(sr.name) + '</p>' + (sr.subtitle ? '<p class="tiny" style="margin-top:2px">' + esc(sr.subtitle) + '</p>' : '') + '</div><p style="font-family:Fraunces,serif;font-style:italic;font-size:22px;color:var(--brick);white-space:nowrap">' + done + ' / ' + sr.weeks.length + '</p></div>';
     h += '<div style="display:grid;grid-template-columns:repeat(' + sr.weeks.length + ',minmax(0,1fr));gap:6px" role="list">';
+    var cnt = sr.counts || {};
     sr.weeks.forEach(function (w, i) {
-      var d = md(w.date), st = att[w.date], future = daysUntil(w.date) > 0;
-      var bg = '#fff', bd = 'var(--line)', fg = 'var(--navy)', mark = '';
-      if (st === '已確認') { bg = '#2F7A44'; bd = '#2F7A44'; fg = '#fff'; mark = '✓'; }
+      var d = md(w.date), st = att[w.date] === '退回' ? null : att[w.date], past = daysUntil(w.date) < 0;
+      var bg = '#fff', bd = 'var(--line)', fg = 'var(--navy)', mark = '', act = '';
+      if (st === '已確認') { bg = '#2F7A44'; bd = '#2F7A44'; fg = '#fff'; mark = '✓ 出席'; }
+      else if (st === '待確認' && !past) { bg = '#F2C14E'; bd = '#E0AC2E'; fg = '#16233B'; mark = '✋ 已舉手'; act = 'hand-off'; }
       else if (st === '待確認') { bg = '#FFF4D6'; bd = '#F2DFA6'; fg = '#9A7012'; mark = '待確認'; }
-      else if (st === '退回') { bd = '#E5A28F'; mark = '再回報'; }
-      else if (future) { bg = '#F6F1E8'; fg = '#A39A8A'; }
-      else { bd = 'var(--brick)'; mark = '勾選'; }
-      var can = !future && (!st || st === '退回');
-      h += '<button role="listitem" ' + (can ? 'data-act="week" data-k="' + w.date + '"' : 'disabled') + ' aria-label="第 ' + (i + 1) + ' 週 ' + d.m + '/' + d.d + (w.topic ? ' ' + esc(w.topic) : '') + (st ? '，' + st : future ? '，還沒到' : '，可以勾選') + '" style="border:1.5px solid ' + bd + ';background:' + bg + ';color:' + fg + ';border-radius:12px;padding:8px 2px;display:flex;flex-direction:column;align-items:center;gap:1px;font:inherit;cursor:' + (can ? 'pointer' : 'default') + '">' +
-        '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:9px;letter-spacing:.5px;opacity:.8">W' + (i + 1) + '</span><b style="font-size:15px">' + d.m + '/' + d.d + '</b><span style="font-size:10px">' + d.wd + '</span><span style="font-size:10px;font-weight:700;min-height:14px">' + mark + '</span></button>';
+      else if (!past) { bd = 'var(--brick)'; fg = 'var(--brick)'; mark = '✋ 參加'; act = 'hand-on'; }
+      else { bg = '#F6F1E8'; fg = '#A39A8A'; mark = '補登'; act = 'hand-on'; }
+      var n = cnt[w.date] || 0;
+      h += '<button role="listitem" ' + (act ? 'data-act="' + act + '" data-k="' + w.date + '"' : 'disabled') + ' aria-label="第 ' + (i + 1) + ' 週 ' + d.m + '/' + d.d + (w.topic ? ' ' + esc(w.topic) : '') + '，' + mark + '，目前 ' + n + ' 人舉手" style="border:1.5px solid ' + bd + ';background:' + bg + ';color:' + fg + ';border-radius:12px;padding:8px 2px;display:flex;flex-direction:column;align-items:center;gap:1px;font:inherit;cursor:' + (act ? 'pointer' : 'default') + '">' +
+        '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:9px;letter-spacing:.5px;opacity:.8">W' + (i + 1) + '</span><b style="font-size:15px">' + d.m + '/' + d.d + '</b><span style="font-size:10px">' + d.wd + '</span><span style="font-size:11px;font-weight:900;min-height:15px;white-space:nowrap">' + mark + '</span><span style="font-size:10px;opacity:.75">' + (n ? n + ' 人' : '&nbsp;') + '</span></button>';
     });
-    h += '</div><p class="tiny">參加過的那一天點一下「勾選」，船長確認後就會打勾。' + (S.me.member.isSupervisor ? '　<a href="#" data-act="deckmode" data-k="admin" style="font-weight:700">管理系列 →</a>' : '') + '</p></div></div>';
+    var nx = sr.weeks.filter(function (w) { return daysUntil(w.date) >= 0; })[0];
+    h += '</div>' + (nx && nx.topic ? '<p class="small">下一次 ' + fmtWeek(nx) + '</p>' : '') + '<p class="tiny">要來的那一天按「✋ 參加」，讓同工提前知道人數；聚會後船長確認出席就會打勾。' + (S.me.member.isSupervisor ? '　<a href="#" data-act="deckmode" data-k="admin" style="font-weight:700">看舉手名單 →</a>' : '') + '</p></div></div>';
     return h;
   }
   function reportBtn(q, ghost) {
@@ -435,7 +437,7 @@
     var pend = S.me.pending || [];
     if (pend.length) {
       h += '<p style="font-size:13px;font-weight:700;color:#9A7012">待你確認（' + pend.length + '）</p>';
-      pend.forEach(function (p) { h += '<div class="row" style="border-color:#F2DFA6"><span class="avatar" style="background:#FFF4D6">' + esc((p.name || '?').slice(0, 1)) + '</span><span style="flex:1;min-width:0"><span style="display:block;font-size:14px;font-weight:700">' + esc(p.name) + '</span><span class="tiny">' + esc(p.quest) + (p.date ? '・' + esc(p.date) + ' 回報' : '') + '</span></span><button class="btn" style="padding:6px 12px;font-size:12px" data-act="confirm" data-id="' + p.id + '" data-k="confirm">確認</button><button class="btn ghost" style="padding:6px 10px;font-size:12px" data-act="confirm" data-id="' + p.id + '" data-k="reject">退回</button></div>'; });
+      pend.forEach(function (p) { h += '<div class="row" style="border-color:#F2DFA6"><span class="avatar" style="background:#FFF4D6">' + esc((p.name || '?').slice(0, 1)) + '</span><span style="flex:1;min-width:0"><span style="display:block;font-size:14px;font-weight:700">' + esc(p.name) + '</span><span class="tiny">' + esc(p.quest) + '・' + esc(p.kind || '回報完成') + '</span></span><button class="btn" style="padding:6px 12px;font-size:12px" data-act="confirm" data-id="' + p.id + '" data-k="confirm">確認</button><button class="btn ghost" style="padding:6px 10px;font-size:12px" data-act="confirm" data-id="' + p.id + '" data-k="reject">退回</button></div>'; });
     }
     if (care.length) { h += '<p style="font-size:13px;font-weight:700;color:var(--brick)">需要你關心</p>'; care.forEach(function (c) { h += crewRow(c, true); }); }
     h += '<p style="font-size:13px;font-weight:700;color:var(--ink2)">我的船員</p>';
@@ -466,6 +468,17 @@
     });
     h += '</fieldset><label style="display:flex;align-items:center;gap:10px;font-size:14px"><input type="checkbox" name="current"' + (e.current ? ' checked' : '') + ' style="width:20px;height:20px;accent-color:#B8503A"> 設為目前系列（顯示在大家的航海日誌）</label>';
     h += '<button class="btn block" type="submit">儲存系列</button></form>';
+    if (e.roster) {
+      h += '<div class="card" style="display:flex;flex-direction:column;gap:10px"><p class="kicker" style="color:#B07A2A">✋ 舉手名單（目前系列）</p>';
+      e.weeks.forEach(function (w) {
+        var list = e.roster[w.date] || [];
+        var conf = list.filter(function (x) { return x.status === '已確認'; }).length;
+        h += '<div style="border-top:1px solid var(--line);padding-top:8px"><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:14px">' + fmtWeek(w) + '</b><span style="font-family:Fraunces,serif;font-style:italic;font-size:18px;color:var(--brick)">' + list.length + ' 人</span></div>' +
+          (list.length ? '<p class="tiny" style="margin-top:4px;line-height:1.8">' + list.map(function (x) { return esc(x.name || '旅人') + (x.status === '已確認' ? ' ✓' : ''); }).join('、') + '</p>' : '<p class="tiny" style="margin-top:4px">還沒有人舉手</p>') +
+          (conf ? '<p class="tiny">已確認出席 ' + conf + ' 人</p>' : '') + '</div>';
+      });
+      h += '</div>';
+    }
     h += '<p class="tiny" style="background:#F6EEE2;border-radius:12px;padding:12px;line-height:1.7">也可以直接在 Notion「🎨 團契系列」修改。圖片會自動縮到 1600px 寬再上傳。</p>';
     return h;
   }
@@ -618,14 +631,22 @@
     }
     else if (act === 'admin-pick') { S.editing = S.admin.filter(function (x) { return x.id === k; })[0]; render(); }
     else if (act === 'admin-new') { S.editing = { id: '', name: '', subtitle: '', weeks: [], current: true, visual: null }; render(); }
-    else if (act === 'week') {
-      var sr = S.me.series, w = sr.weeks.filter(function (x) { return x.date === k; })[0];
-      openSheet(head('CHECK IN・' + esc(sr.name), 'var(--brick)', fmtWeek(w)) + '<p class="small">你有參加這一次的聚會嗎？勾選後會請船長確認。</p><button class="btn block" data-act="week-go" data-k="' + k + '">有，我參加了</button><button class="btn ghost block" data-act="close">還沒</button>');
+    else if (act === 'hand-on') {
+      var srA = S.me.series; srA.attendance = srA.attendance || {}; srA.counts = srA.counts || {};
+      var prevA = srA.attendance[k];
+      srA.attendance[k] = '待確認'; srA.counts[k] = (srA.counts[k] || 0) + 1; render();
+      api('/api/series/report', { method: 'POST', body: { date: k, on: true } }).then(loadMe)
+        .catch(function (err) { srA.attendance[k] = prevA; srA.counts[k]--; render(); alert(err.message); });
     }
-    else if (act === 'week-go') {
-      el.disabled = true; el.textContent = '送出中…';
-      api('/api/series/report', { method: 'POST', body: { date: k } }).then(function () { closeSheet(); return loadMe(); })
-        .catch(function (err) { el.disabled = false; el.textContent = '有，我參加了'; alert(err.message); });
+    else if (act === 'hand-off') {
+      var srB = S.me.series, wB = srB.weeks.filter(function (x) { return x.date === k; })[0];
+      openSheet(head('✋ 已舉手', '#B07A2A', fmtWeek(wB)) + '<p class="small">你已經舉手要參加這一次聚會。臨時不能來的話，可以把手放下，讓同工抓準人數。</p><button class="btn ghost block" data-act="hand-cancel" data-k="' + k + '">放下手（不參加了）</button><button class="btn block" data-act="close">好，我會到</button>');
+    }
+    else if (act === 'hand-cancel') {
+      var srC = S.me.series; el.disabled = true;
+      api('/api/series/report', { method: 'POST', body: { date: k, on: false } })
+        .then(function () { delete srC.attendance[k]; srC.counts[k] = Math.max(0, (srC.counts[k] || 1) - 1); closeSheet(); render(); return loadMe(); })
+        .catch(function (err) { el.disabled = false; alert(err.message); });
     }
     else if (act === 'thread') {
       var pid = el.dataset.id;

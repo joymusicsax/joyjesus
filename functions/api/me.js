@@ -1,7 +1,7 @@
 // GET /api/me — 登入者自己的航海日誌資料（需要 LINE 登入）
 import { DB, notion, queryAll, P, id, handle, json, verifyLine, findMember,
   boatMap, boatOf, captainBoats, isSupervisor, logConfirmed, ENTRY_GROUP_URL, ENTRY_GROUP_MSG,
-  currentSeries, seriesAttendance } from '../../lib/notion.js';
+  currentSeries, seriesAttendance, todayTW } from '../../lib/notion.js';
 
 export const onRequestGet = handle(async ({ env, request }) => {
   const user = await verifyLine(env, request);
@@ -13,7 +13,16 @@ export const onRequestGet = handle(async ({ env, request }) => {
   const roles = P.multi(m, '同工角色');
   const sup = isSupervisor(m);
 
-  const seriesP = currentSeries(env).then(async (s) => (s ? { ...s, attendance: await seriesAttendance(env, memberId, s.id) } : null)).catch((e) => { console.error(e); return null; });
+  const seriesP = currentSeries(env).then(async (s) => {
+    if (!s) return null;
+    const [attendance, all] = await Promise.all([
+      seriesAttendance(env, memberId, s.id),
+      queryAll(env, DB.logs, { filter: { property: '系列', relation: { contains: s.id } } }),
+    ]);
+    const counts = {};
+    all.forEach((lg) => { if (P.select(lg, '確認狀態') === '退回') return; const d = (P.date(lg, '系列聚會日') || '').slice(0, 10); if (d) counts[d] = (counts[d] || 0) + 1; });
+    return { ...s, attendance, counts };
+  }).catch((e) => { console.error(e); return null; });
   const [quests, logs, bm] = await Promise.all([
     queryAll(env, DB.quests, {
       filter: { property: '啟用', checkbox: { equals: true } },
@@ -104,6 +113,8 @@ export const onRequestGet = handle(async ({ env, request }) => {
     }));
     pending = allPending
       .filter((lg) => {
+        const sd = (P.date(lg, '系列聚會日') || '').slice(0, 10);
+        if (sd && sd > todayTW()) return false; // 還沒聚會的舉手，聚會後才需要確認出席
         const who = P.rel(lg, '成員')[0];
         if (!who || who === memberId) return false;
         return crewIds.has(who) || (sup && byId[who]);
@@ -113,7 +124,8 @@ export const onRequestGet = handle(async ({ env, request }) => {
         return {
           id: id(lg),
           name: who ? P.title(who, '暱稱') : '',
-          quest: questName[P.rel(lg, '任務')[0]] || P.title(lg, '紀錄'),
+          quest: questName[P.rel(lg, '任務')[0]] || (P.title(lg, '紀錄').split('｜')[1] || P.title(lg, '紀錄')),
+          kind: P.select(lg, '紀錄方式') === '舉手參加' ? '有舉手，確認是否出席' : '回報完成',
           date: P.date(lg, '完成日期'),
         };
       });
