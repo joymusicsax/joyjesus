@@ -155,6 +155,12 @@
     return { title: season || journey, list: list, done: list.filter(function (x) { return x.done; }).length };
   }
   function voyageCard() {
+    var sr = S.me.series;
+    if (S.me.member.circle !== '小船船員' && sr && sr.weeks.length) {
+      var dn = sr.weeks.filter(function (w) { return sr.attendance[w.date] === '已確認'; }).length;
+      var nx = sr.weeks.filter(function (w) { return daysUntil(w.date) >= 0; })[0];
+      return '<a class="card" href="/liff/log" data-nav style="text-decoration:none;color:inherit;display:flex;flex-direction:column;gap:10px"><div style="display:flex;justify-content:space-between;align-items:baseline"><div><p class="kicker" style="color:var(--brick)">MY VOYAGE・團契主題</p><p class="h2" style="margin-top:2px">' + esc(sr.name) + '</p></div><p style="font-family:Fraunces,serif;font-style:italic;font-size:20px;color:var(--brick)">' + dn + ' / ' + sr.weeks.length + '</p></div><div class="bar"><i style="width:' + Math.round(dn / sr.weeks.length * 100) + '%"></i></div><p class="small">' + (nx ? '下一次：' + fmtWeek(nx) : '這個系列結束了，謝謝你一起走完！') + '</p><span style="font-size:13px;font-weight:700;color:var(--brick)">打開航海日誌 →</span></a>';
+    }
     var mq = mainQuest(), boat = S.me.boat;
     var next = mq.list.filter(function (x) { return !x.done; })[0];
     var pct = mq.list.length ? Math.round(mq.done / mq.list.length * 100) : 0;
@@ -184,8 +190,10 @@
     if (boat && boat.captain) h += '<div class="card" style="display:flex;align-items:center;gap:12px"><span class="avatar" style="width:40px;height:40px;background:var(--gold)">' + esc(boat.captain.slice(0, 1)) + '</span><div style="flex:1;min-width:0"><p class="tiny">你的船長</p><p style="font-weight:700">' + esc(boat.captain) + (boat.sailors.length ? ' ＋ 水手 ' + esc(boat.sailors.join('、')) : '') + '</p></div><a class="btn line" style="padding:8px 12px;font-size:13px;white-space:nowrap" href="' + esc(oaMessage('我是' + m.name + '（' + boat.name + '），想找船長' + boat.captain + '聊聊')) + '" target="_blank" rel="noopener">傳訊息</a></div>';
     if (m.status === '待船長聯繫') h += entryCard();
     h += introCard(m);
+    var crewCircle = m.circle === '小船船員';
+    if (!crewCircle) h += seriesBlock('MAIN QUEST・團契主題');
     var mq = mainQuest(), firstOpen = true;
-    h += '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;justify-content:space-between;align-items:baseline"><div><p class="kicker" style="color:var(--brick)">MAIN QUEST・主線</p><p class="h2" style="margin-top:2px">' + esc(mq.title) + '</p></div><p style="font-family:Fraunces,serif;font-style:italic;font-size:22px;color:var(--brick)">' + mq.done + ' / ' + mq.list.length + '</p></div>';
+    if (crewCircle || mq.list.length) h += '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;justify-content:space-between;align-items:baseline"><div><p class="kicker" style="color:var(--brick)">MAIN QUEST・主線</p><p class="h2" style="margin-top:2px">' + esc(mq.title) + '</p></div><p style="font-family:Fraunces,serif;font-style:italic;font-size:22px;color:var(--brick)">' + mq.done + ' / ' + mq.list.length + '</p></div>';
     h += '<div class="bar"><i style="width:' + (mq.list.length ? Math.round(mq.done / mq.list.length * 100) : 0) + '%"></i></div><div class="steps">';
     mq.list.forEach(function (q) {
       var isNext = !q.done && firstOpen; if (isNext) firstOpen = false;
@@ -196,8 +204,11 @@
         (gather && !q.pending ? '<p class="tiny" style="margin-top:3px">參加後按「回報完成」，船長確認就打勾。</p>' : '') + '</div>' +
         (isNext ? '<span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">' + (gather && !q.pending ? '<a class="btn" style="padding:6px 12px;font-size:12px;white-space:nowrap" href="' + esc(ev && ev.link ? ev.link : '/liff/news') + '"' + (ev && ev.link ? ' target="_blank" rel="noopener"' : ' data-nav') + '>報名</a>' : '') + reportBtn(q, gather) + '</span>' : (!q.done && q.pending ? pendingTag() : '')) + '</div>';
     });
-    if (!mq.list.length) h += '<p class="tiny">這一季的任務還沒公布。</p>';
-    h += '</div>' + (m.circle === '小船船員' ? '<p class="tiny">沒有截止日，準備好再出發。完成後按「回報完成」，船長確認後才會打勾。</p>' : '<p class="tiny">完成後按「回報完成」，由船長或督導確認。</p>') + '</div>';
+    if (crewCircle || mq.list.length) {
+      if (!mq.list.length) h += '<p class="tiny">這一季的任務還沒公布。</p>';
+      h += '</div>' + (crewCircle ? '<p class="tiny">沒有截止日，準備好再出發。完成後按「回報完成」，船長確認後才會打勾。</p>' : '<p class="tiny">完成後按「回報完成」，由船長或督導確認。</p>') + '</div>';
+    }
+    if (crewCircle) h += seriesBlock('SIDE QUEST・團契主題');
     var side = S.me.quests.filter(function (x) { return x.type === '支線'; }).sort(function (a, b) { return a.order - b.order; });
     var drew = store('joy-bless-day') === todayKey();
     {
@@ -247,6 +258,34 @@
       h += '<svg width="52" height="52" viewBox="0 0 52 52" role="img" aria-label="' + esc(b.name) + (on ? '，已獲得' : '，未獲得：' + (b.note || '')) + '"><title>' + esc(b.name) + (on ? '' : '：' + (b.note || '')) + '</title><circle cx="26" cy="26" r="24" fill="' + (on ? '#8A5A34' : '#E6DECF') + '"/><g fill="none" stroke="' + (on ? '#F5EDE1' : '#B3A68F') + '" stroke-width="2.5">' + (BADGE_ICON[b.name] || '<circle cx="26" cy="26" r="8"/>') + '</g></svg>';
     });
     return h + '</div><p class="tiny">灰色的徽章登上大船後就能開始收集。</p></div>';
+  }
+  // ----- 團契主題板塊：上半段主視覺、下半段 4～5 個聚會日期 -----
+  function fmtWeek(w) { var d = md(w.date); return d.m + '/' + d.d + '（' + d.wd.slice(1) + '）' + (w.topic ? w.topic : ''); }
+  function seriesBlock(kicker) {
+    var sr = S.me && S.me.series;
+    if (!sr || !sr.weeks.length) return '<div class="card"><p class="kicker" style="color:var(--brick)">' + esc(kicker) + '</p><p class="small" style="margin-top:6px">這一季的團契主題還沒公布。</p></div>';
+    var att = sr.attendance || {};
+    var done = sr.weeks.filter(function (w) { return att[w.date] === '已確認'; }).length;
+    var h = '<div class="card" style="padding:0;overflow:hidden;display:flex;flex-direction:column">';
+    h += sr.visual
+      ? '<img src="' + esc(sr.visual) + '" alt="' + esc(sr.name) + ' 主視覺" style="display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#F3EBDD">'
+      : '<div style="aspect-ratio:16/9;background:linear-gradient(135deg,#16233B,#2F6F78);display:flex;align-items:flex-end;padding:16px;box-sizing:border-box"><p style="color:#fff;font-size:26px;font-weight:900">' + esc(sr.name) + '</p></div>';
+    h += '<div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><div style="min-width:0"><p class="kicker" style="color:var(--brick)">' + esc(kicker) + '</p><p class="h2" style="margin-top:2px">' + esc(sr.name) + '</p>' + (sr.subtitle ? '<p class="tiny" style="margin-top:2px">' + esc(sr.subtitle) + '</p>' : '') + '</div><p style="font-family:Fraunces,serif;font-style:italic;font-size:22px;color:var(--brick);white-space:nowrap">' + done + ' / ' + sr.weeks.length + '</p></div>';
+    h += '<div style="display:grid;grid-template-columns:repeat(' + sr.weeks.length + ',minmax(0,1fr));gap:6px" role="list">';
+    sr.weeks.forEach(function (w, i) {
+      var d = md(w.date), st = att[w.date], future = daysUntil(w.date) > 0;
+      var bg = '#fff', bd = 'var(--line)', fg = 'var(--navy)', mark = '';
+      if (st === '已確認') { bg = '#2F7A44'; bd = '#2F7A44'; fg = '#fff'; mark = '✓'; }
+      else if (st === '待確認') { bg = '#FFF4D6'; bd = '#F2DFA6'; fg = '#9A7012'; mark = '待確認'; }
+      else if (st === '退回') { bd = '#E5A28F'; mark = '再回報'; }
+      else if (future) { bg = '#F6F1E8'; fg = '#A39A8A'; }
+      else { bd = 'var(--brick)'; mark = '勾選'; }
+      var can = !future && (!st || st === '退回');
+      h += '<button role="listitem" ' + (can ? 'data-act="week" data-k="' + w.date + '"' : 'disabled') + ' aria-label="第 ' + (i + 1) + ' 週 ' + d.m + '/' + d.d + (w.topic ? ' ' + esc(w.topic) : '') + (st ? '，' + st : future ? '，還沒到' : '，可以勾選') + '" style="border:1.5px solid ' + bd + ';background:' + bg + ';color:' + fg + ';border-radius:12px;padding:8px 2px;display:flex;flex-direction:column;align-items:center;gap:1px;font:inherit;cursor:' + (can ? 'pointer' : 'default') + '">' +
+        '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:9px;letter-spacing:.5px;opacity:.8">W' + (i + 1) + '</span><b style="font-size:15px">' + d.m + '/' + d.d + '</b><span style="font-size:10px">' + d.wd + '</span><span style="font-size:10px;font-weight:700;min-height:14px">' + mark + '</span></button>';
+    });
+    h += '</div><p class="tiny">參加過的那一天點一下「勾選」，船長確認後就會打勾。' + (S.me.member.isSupervisor ? '　<a href="#" data-act="deckmode" data-k="admin" style="font-weight:700">管理系列 →</a>' : '') + '</p></div></div>';
+    return h;
   }
   function reportBtn(q, ghost) {
     if (q.pending) return pendingTag();
@@ -312,6 +351,7 @@
     var m = S.me.member;
     if (!m) return '<div class="card"><p class="h2">登上小船之後就能使用船員甲板</p><p class="small" style="margin:6px 0 12px">在這裡可以彼此代禱、提出問題，也可以匿名。</p><button class="btn" data-act="quiz">找到我的小船</button></div>';
     var lead = m.isCaptain || m.isSupervisor;
+    if (m.isSupervisor && S.deckMode === 'admin') return viewAdmin();
     if (lead && S.deckMode !== 'board') return viewCaptain();
     return viewBoard(lead);
   }
@@ -330,9 +370,48 @@
     if (care.length) { h += '<p style="font-size:13px;font-weight:700;color:var(--brick)">需要你關心</p>'; care.forEach(function (c) { h += crewRow(c, true); }); }
     h += '<p style="font-size:13px;font-weight:700;color:var(--ink2)">我的船員</p>';
     h += crew.length ? crew.map(function (c) { return crewRow(c, false); }).join('') : '<p class="empty">還沒有船員登船。</p>';
+    if (S.me.member.isSupervisor) h += '<button class="btn block" style="background:var(--navy)" data-act="deckmode" data-k="admin">🎨 團契系列管理（主視覺・聚會日期）</button>';
     h += '<button class="btn ghost block" data-act="deckmode" data-k="board">看代禱、提問與船員介紹</button>';
     h += '<p class="tiny" style="background:#F6EEE2;border-radius:12px;padding:12px;line-height:1.7">你只看得到自己船上的船員。新船員會先進入口群組，請邀請他加入你的小船群組。確認任務時會自動更新「最後互動日」。</p>';
     return h;
+  }
+  // ----- 團契系列管理（督導） -----
+  function viewAdmin() {
+    var h = '<button class="btn ghost" style="align-self:flex-start" data-act="deckmode" data-k="captain">← 回甲板</button>';
+    h += '<div><p class="kicker" style="color:var(--brick)">SERIES ADMIN</p><p class="h1" style="margin-top:3px">團契系列管理</p><p class="small" style="margin-top:4px">設定每個系列的主視覺和 4～5 次聚會日期。勾「目前系列」的會出現在大家的航海日誌。</p></div>';
+    if (!S.admin) {
+      if (!S.adminLoading) { S.adminLoading = true; api('/api/series/admin').then(function (j) { S.admin = j.series; S.adminLoading = false; var want = S.adminWant; S.adminWant = null; S.editing = (want && j.series.filter(function (x) { return x.id === want; })[0]) || (S.editing && S.editing.id && j.series.filter(function (x) { return x.id === S.editing.id; })[0]) || j.series.filter(function (x) { return x.current; })[0] || j.series[0] || null; render(); }).catch(function (e) { S.adminLoading = false; S.admin = []; alert(e.message); render(); }); }
+      return h + spinner();
+    }
+    h += '<div class="chips">' + S.admin.map(function (x) { return '<button class="chip" data-act="admin-pick" data-k="' + x.id + '" aria-pressed="' + (S.editing && S.editing.id === x.id) + '">' + esc(x.name) + (x.current ? ' ★' : '') + '</button>'; }).join('') + '<button class="chip" data-act="admin-new" aria-pressed="' + (S.editing && !S.editing.id) + '">＋ 新系列</button></div>';
+    var e = S.editing || { id: '', name: '', subtitle: '', weeks: [], current: true, visual: null };
+    var rows = e.weeks.slice(); while (rows.length < 5) rows.push({ date: '', topic: '' });
+    h += '<form id="seriesForm" data-id="' + esc(e.id || '') + '" class="card" style="display:flex;flex-direction:column;gap:12px">';
+    h += '<div style="display:flex;flex-direction:column;gap:6px"><p style="font-size:13px;font-weight:700">主視覺</p><div id="visualPreview" style="aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#F3EBDD;display:flex;align-items:center;justify-content:center">' + (e.visual ? '<img src="' + esc(e.visual) + '" alt="" style="width:100%;height:100%;object-fit:cover">' : '<span class="tiny">還沒有主視覺（建議 16:9 橫式）</span>') + '</div><input type="file" name="visual" accept="image/jpeg,image/png,image/webp" style="font-size:13px"></div>';
+    h += '<label class="field">系列名稱<input name="name" required maxlength="60" value="' + esc(e.name) + '" placeholder="例如：追星之旅"></label>';
+    h += '<label class="field">副標（選填）<input name="subtitle" maxlength="120" value="' + esc(e.subtitle || '') + '" placeholder="例如：11 月團契系列・週二 21:00 線上"></label>';
+    h += '<fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:8px"><legend style="font-size:13px;font-weight:700;margin-bottom:6px">聚會日期（4 週或 5 週，第 5 週可留空）</legend>';
+    rows.forEach(function (w, i) {
+      h += '<div style="display:grid;grid-template-columns:34px 140px 1fr;gap:6px;align-items:center"><span class="mono" style="font-size:12px;color:var(--brick)">W' + (i + 1) + '</span><input type="date" name="date' + i + '" value="' + esc(w.date || '') + '"' + (i < 4 ? ' ' : '') + ' style="border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit;font-size:14px"><input name="topic' + i + '" maxlength="80" value="' + esc(w.topic || '') + '" placeholder="這週主題" style="border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit;font-size:14px;min-width:0"></div>';
+    });
+    h += '</fieldset><label style="display:flex;align-items:center;gap:10px;font-size:14px"><input type="checkbox" name="current"' + (e.current ? ' checked' : '') + ' style="width:20px;height:20px;accent-color:#B8503A"> 設為目前系列（顯示在大家的航海日誌）</label>';
+    h += '<button class="btn block" type="submit">儲存系列</button></form>';
+    h += '<p class="tiny" style="background:#F6EEE2;border-radius:12px;padding:12px;line-height:1.7">也可以直接在 Notion「🎨 團契系列」修改。圖片會自動縮到 1600px 寬再上傳。</p>';
+    return h;
+  }
+  function shrinkImage(file) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () {
+        var max = 1600, sc = Math.min(1, max / Math.max(img.width, img.height));
+        var c = document.createElement('canvas'); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (b) { b ? resolve(b) : reject(new Error('圖片處理失敗')); }, 'image/jpeg', 0.86);
+      };
+      img.onerror = function () { reject(new Error('讀不到這張圖片')); };
+      img.src = url;
+    });
   }
   function crewRow(c, careMode) {
     var sub = careMode ? (c.lastContact ? '上次互動 ' + c.lastContact : '還沒有互動紀錄') : (c.status || '') + '・已完成 ' + c.done + ' 個任務';
@@ -448,7 +527,22 @@
     }
     else if (act === 'filter') { S.filter = k; render(); }
     else if (act === 'kind') { S.boardKind = k; S.openThread = null; render(); }
-    else if (act === 'deckmode') { S.deckMode = k; render(); }
+    else if (act === 'deckmode') {
+      e.preventDefault(); S.deckMode = k;
+      if (k === 'admin' && S.view !== 'deck') { history.pushState(null, '', '/liff/deck'); route(); } else render();
+      window.scrollTo(0, 0);
+    }
+    else if (act === 'admin-pick') { S.editing = S.admin.filter(function (x) { return x.id === k; })[0]; render(); }
+    else if (act === 'admin-new') { S.editing = { id: '', name: '', subtitle: '', weeks: [], current: true, visual: null }; render(); }
+    else if (act === 'week') {
+      var sr = S.me.series, w = sr.weeks.filter(function (x) { return x.date === k; })[0];
+      openSheet(head('CHECK IN・' + esc(sr.name), 'var(--brick)', fmtWeek(w)) + '<p class="small">你有參加這一次的聚會嗎？勾選後會請船長確認。</p><button class="btn block" data-act="week-go" data-k="' + k + '">有，我參加了</button><button class="btn ghost block" data-act="close">還沒</button>');
+    }
+    else if (act === 'week-go') {
+      el.disabled = true; el.textContent = '送出中…';
+      api('/api/series/report', { method: 'POST', body: { date: k } }).then(function () { closeSheet(); return loadMe(); })
+        .catch(function (err) { el.disabled = false; el.textContent = '有，我參加了'; alert(err.message); });
+    }
     else if (act === 'thread') {
       var pid = el.dataset.id;
       S.openThread = S.openThread === pid ? null : pid;
@@ -470,6 +564,11 @@
     }
   });
   document.addEventListener('change', function (e) {
+    if (e.target.name === 'visual' && e.target.files && e.target.files[0]) {
+      var pv = document.getElementById('visualPreview');
+      if (pv) pv.innerHTML = '<img src="' + URL.createObjectURL(e.target.files[0]) + '" alt="" style="width:100%;height:100%;object-fit:cover">';
+      return;
+    }
     if (e.target.name !== 'place') return;
     var w = document.getElementById('placeOtherWrap');
     if (w) { w.hidden = e.target.value !== '其他'; if (!w.hidden) w.querySelector('input').focus(); }
@@ -510,6 +609,28 @@
           return loadThread(pid);
         })
         .catch(function (err) { rb.disabled = false; rb.textContent = '送出'; alert(err.message); });
+      return;
+    }
+    if (f0.id === 'seriesForm') {
+      e.preventDefault();
+      var sb = f0.querySelector('button[type=submit]');
+      var weeks = [];
+      for (var i = 0; i < 5; i++) { var dv = f0.elements['date' + i].value; if (dv) weeks.push({ date: dv, topic: f0.elements['topic' + i].value }); }
+      if (weeks.length < 4 && !confirm('只有 ' + weeks.length + ' 個聚會日期，確定要儲存嗎？')) return;
+      var file = f0.elements.visual.files[0];
+      sb.disabled = true; sb.textContent = '儲存中…';
+      api('/api/series/admin', { method: 'POST', body: { id: f0.dataset.id || null, name: f0.elements.name.value, subtitle: f0.elements.subtitle.value, weeks: weeks, current: f0.elements.current.checked } })
+        .then(function (j) {
+          if (!file) return j;
+          sb.textContent = '上傳主視覺中…';
+          return shrinkImage(file).then(function (blob) {
+            return fetch('/api/series/visual?id=' + j.id, { method: 'POST', headers: { 'Content-Type': 'image/jpeg', Authorization: 'Bearer ' + S.token }, body: blob })
+              .then(function (r) { return r.json().then(function (x) { if (!r.ok) throw new Error(x.error || '上傳失敗'); return j; }); });
+          });
+        })
+        .then(function (j) { S.admin = null; S.editing = { id: j.id }; alert('已儲存'); return loadMe(); })
+        .then(function () { if (S.admin === null && S.editing) { var want = S.editing.id; S.editing = null; S.adminWant = want; } render(); })
+        .catch(function (err) { sb.disabled = false; sb.textContent = '儲存系列'; alert(err.message); });
       return;
     }
     if (e.target.id !== 'composeForm') return;

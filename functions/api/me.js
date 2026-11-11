@@ -1,6 +1,7 @@
 // GET /api/me — 登入者自己的航海日誌資料（需要 LINE 登入）
 import { DB, notion, queryAll, P, id, handle, json, verifyLine, findMember,
-  boatMap, boatOf, captainBoats, isSupervisor, logConfirmed, ENTRY_GROUP_URL, ENTRY_GROUP_MSG } from '../../lib/notion.js';
+  boatMap, boatOf, captainBoats, isSupervisor, logConfirmed, ENTRY_GROUP_URL, ENTRY_GROUP_MSG,
+  currentSeries, seriesAttendance } from '../../lib/notion.js';
 
 export const onRequestGet = handle(async ({ env, request }) => {
   const user = await verifyLine(env, request);
@@ -12,6 +13,7 @@ export const onRequestGet = handle(async ({ env, request }) => {
   const roles = P.multi(m, '同工角色');
   const sup = isSupervisor(m);
 
+  const seriesP = currentSeries(env).then(async (s) => (s ? { ...s, attendance: await seriesAttendance(env, memberId, s.id) } : null)).catch((e) => { console.error(e); return null; });
   const [quests, logs, bm] = await Promise.all([
     queryAll(env, DB.quests, {
       filter: { property: '啟用', checkbox: { equals: true } },
@@ -134,6 +136,7 @@ export const onRequestGet = handle(async ({ env, request }) => {
     },
     boat,
     quests: questList,
+    series: await seriesP,
     badges,
     crew,
     pending,
