@@ -1,17 +1,18 @@
 // POST /api/join — 新朋友做完測驗，按「登上這艘船」
-// body: { boat: '恩典漂漂船' | '浪子返航號' | '摩西分海號', intro?: string, introScope?: '只給船長'|'同船'|'全團契' }
+// body: { boat: '恩典漂漂船' | '浪子返航號' | '摩西分海號', region: 居住地區（必填）, intro?: string, introScope?: '只給船長'|'同船'|'全團契' }
 // 1. 建立成員，先掛在測驗結果那艘船（之後可在 Notion 改）
 // 2. 官方帳號推播入口群組邀請給新朋友、新船員通知給該船船長（有設定 LINE_OA_TOKEN 才會發）
 import { DB, notion, createPage, updatePage, P, W, id, handle, json, verifyLine, findMember, readJson, todayTW, HttpError,
-  boatMap, pushLine, ENTRY_GROUP_URL, ENTRY_GROUP_MSG } from '../../lib/notion.js';
+  boatMap, pushLine, ENTRY_GROUP_URL, ENTRY_GROUP_MSG, REGIONS, completeIntroQuest } from '../../lib/notion.js';
 
 const BOATS = ['恩典漂漂船', '浪子返航號', '摩西分海號'];
 const SCOPES = ['只給船長', '同船', '全團契'];
 
 export const onRequestPost = handle(async ({ env, request }) => {
   const user = await verifyLine(env, request);
-  const { boat, intro, introScope } = await readJson(request);
+  const { boat, intro, introScope, region } = await readJson(request);
   if (!BOATS.includes(boat)) throw new HttpError(400, '請選擇一艘小船');
+  if (!REGIONS.includes(region)) throw new HttpError(400, '請選擇居住地區');
   const scope = SCOPES.includes(introScope) ? introScope : '只給船長';
   const introText = String(intro || '').trim().slice(0, 500);
 
@@ -29,10 +30,14 @@ export const onRequestPost = handle(async ({ env, request }) => {
     '來源': W.select('LIFF 測驗'),
     '加入日期': W.date(todayTW()),
     '介紹公開範圍': W.select(scope),
+    '地區': W.select(region),
   };
   if (boatId) props['所屬小船'] = W.rel([boatId]);
   if (introText) props['自我介紹'] = W.text(introText);
   const page = await createPage(env, DB.members, props);
+
+  // 送出自我介紹＝完成第一個任務
+  await completeIntroQuest(env, id(page), user.name).catch((e) => console.error(e));
 
   // 推播：新朋友 → 入口群組邀請
   const sent = await pushLine(env, user.userId, `${ENTRY_GROUP_MSG}\n👉 ${ENTRY_GROUP_URL}`);

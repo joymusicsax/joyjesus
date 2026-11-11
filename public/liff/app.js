@@ -184,15 +184,19 @@
     return '<div class="card" style="display:flex;flex-direction:column;gap:8px;background:#EAF4EC;border-color:#BFDCC6"><p class="kicker" style="color:#2F7A44">BOARDING PASS・登船邀請</p><p style="font-size:14px;line-height:1.7">' + esc(e.msg || '') + '</p><a class="btn line" style="align-self:flex-start" href="' + esc(e.url || '#') + '" target="_blank" rel="noopener">加入入口群組</a></div>';
   }
   var SCOPE_NOTE = { '只給船長': '只有你的船長看得到', '同船': '同一艘船的人看得到', '全團契': '所有登船的團契成員看得到' };
+  var REGIONS = ['北部', '中部', '南部', '東部', '海外'];
   function introCard(m) {
-    return '<div class="card" style="display:flex;flex-direction:column;gap:8px"><div style="display:flex;justify-content:space-between;align-items:baseline"><p class="kicker" style="color:var(--teal)">HELLO・自我介紹</p><span class="tiny">' + esc(SCOPE_NOTE[m.introScope] || '') + '</span></div>' +
+    return '<div class="card" style="display:flex;flex-direction:column;gap:8px"><div style="display:flex;justify-content:space-between;align-items:baseline"><p class="kicker" style="color:var(--teal)">HELLO・自我介紹</p><span class="tiny">詳細介紹：' + esc(SCOPE_NOTE[m.introScope] || '') + '</span></div>' +
+      '<p class="small">居住地區：<b>' + esc(m.region || '還沒填') + '</b>　<span class="tiny">（暱稱和地區全團契看得到）</span></p>' +
       (m.intro ? '<p style="font-size:14px;line-height:1.75;white-space:pre-wrap">' + esc(m.intro) + '</p>' : '<p class="small">還沒寫自我介紹。想讓船長和船員怎麼認識你？</p>') +
-      '<button class="btn ghost" style="align-self:flex-start;padding:6px 12px;font-size:12px" data-act="intro-edit">' + (m.intro ? '編輯' : '寫自我介紹') + '</button></div>';
+      '<button class="btn ghost" style="align-self:flex-start;padding:6px 12px;font-size:12px" data-act="intro-edit">' + (m.intro || m.region ? '編輯' : '寫自我介紹') + '</button></div>';
   }
-  function introFields(intro, scope) {
+  function introFields(intro, scope, region) {
     scope = scope || '只給船長';
-    return '<label class="field">自我介紹（選填）<textarea name="intro" rows="4" maxlength="500" placeholder="想怎麼被稱呼、從哪裡來、最近在想什麼…寫多少都可以">' + esc(intro || '') + '</textarea></label>' +
-      '<fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:8px"><legend class="small" style="font-weight:700;margin-bottom:6px">誰可以看到我的介紹？</legend>' +
+    return '<fieldset style="border:0;padding:0;margin:0"><legend class="small" style="font-weight:700;margin-bottom:8px">居住地區 <span style="color:var(--brick)">*必填</span>　<span class="tiny" style="font-weight:400">和暱稱一起，全團契看得到</span></legend><div class="chips">' +
+      REGIONS.map(function (r) { return '<label class="chip" style="cursor:pointer"><input type="radio" name="region" value="' + r + '" required' + (r === region ? ' checked' : '') + ' style="accent-color:#B8503A;margin-right:4px">' + r + '</label>'; }).join('') + '</div></fieldset>' +
+      '<label class="field">詳細自我介紹<textarea name="intro" rows="4" maxlength="500" placeholder="想怎麼被稱呼、從哪裡來、最近在想什麼…寫多少都可以">' + esc(intro || '') + '</textarea></label>' +
+      '<fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:8px"><legend class="small" style="font-weight:700;margin-bottom:6px">詳細介紹要給誰看？</legend>' +
       ['只給船長', '同船', '全團契'].map(function (k) { return '<label style="display:flex;align-items:center;gap:10px;font-size:14px"><input type="radio" name="scope" value="' + k + '"' + (k === scope ? ' checked' : '') + ' style="width:20px;height:20px;accent-color:#B8503A"><span><b>' + k + '</b>　<span class="tiny">' + SCOPE_NOTE[k] + '</span></span></label>'; }).join('') +
       '</fieldset>';
   }
@@ -272,10 +276,11 @@
       if (!S.introLoading) { S.introLoading = true; api('/api/intro').then(function (j) { S.intros = j.intros; S.introLoading = false; render(); }).catch(function (e) { S.introLoading = false; S.intros = []; S.meError = e.message; render(); }); }
       return spinner();
     }
-    var h = '<p class="tiny">每個人自己決定介紹給誰看：只給船長、同船，或全團契。</p>';
+    var h = '<p class="tiny">大家都看得到暱稱和居住地區；詳細介紹由每個人自己決定給誰看。</p>';
     h += S.intros.length ? S.intros.map(function (p) {
-      return '<article class="card post"><div style="display:flex;align-items:center;gap:10px"><span class="avatar" style="background:#DCE6F2">' + esc((p.name || '?').slice(0, 1)) + '</span><div style="flex:1"><p style="font-size:14px;font-weight:700">' + esc(p.name) + (p.mine ? '（我）' : '') + '</p><p class="tiny">' + esc((p.boat ? p.boat + '・' : '') + p.scope) + '</p></div></div><p class="text" style="white-space:pre-wrap">' + esc(p.intro) + '</p></article>';
-    }).join('') : '<p class="empty">還沒有看得到的自我介紹。</p>';
+      return '<article class="card post"><div style="display:flex;align-items:center;gap:10px"><span class="avatar" style="background:#DCE6F2">' + esc((p.name || '?').slice(0, 1)) + '</span><div style="flex:1"><p style="font-size:14px;font-weight:700">' + esc(p.name) + (p.mine ? '（我）' : '') + '</p><p class="tiny">' + esc(p.region || '地區未填') + (p.boat ? '・' + esc(p.boat) : '') + '</p></div>' + (p.region ? '<span class="tag" style="background:#E3EFE3;color:#2F7A44">' + esc(p.region) + '</span>' : '') + '</div>' +
+        (p.intro ? '<p class="text" style="white-space:pre-wrap">' + esc(p.intro) + '</p>' : p.hidden ? '<p class="tiny">🔒 詳細介紹只給特定的人看</p>' : '') + '</article>';
+    }).join('') : '<p class="empty">還沒有船員。</p>';
     return h + '<button class="btn dark fab" data-act="intro-edit">＋ 寫／改我的介紹</button>';
   }
   function loadBoard() {
@@ -338,7 +343,7 @@
     }
     else if (act === 'intro-edit') {
       var mm = S.me && S.me.member;
-      openSheet(head('HELLO', 'var(--teal)', '我的自我介紹') + '<form id="introForm" style="display:flex;flex-direction:column;gap:12px">' + introFields(mm && mm.intro, mm && mm.introScope) + '<button class="btn block" type="submit">儲存</button></form>');
+      openSheet(head('HELLO', 'var(--teal)', '我的自我介紹') + '<form id="introForm" style="display:flex;flex-direction:column;gap:12px">' + introFields(mm && mm.intro, mm && mm.introScope, mm && mm.region) + '<button class="btn block" type="submit">儲存</button></form>');
     }
     else if (act === 'filter') { S.filter = k; render(); }
     else if (act === 'kind') { S.boardKind = k; render(); }
@@ -365,7 +370,9 @@
       var b0 = f0.querySelector('button[type=submit]'), label = b0.textContent;
       var scopeEl = f0.querySelector('input[name=scope]:checked');
       var sc = scopeEl ? scopeEl.value : '只給船長';
-      var body = { intro: f0.elements.intro.value, introScope: sc, scope: sc };
+      var rg = f0.querySelector('input[name=region]:checked');
+      if (!rg) { alert('請選擇居住地區'); return; }
+      var body = { intro: f0.elements.intro.value, introScope: sc, scope: sc, region: rg.value };
       b0.disabled = true; b0.textContent = '送出中…';
       if (f0.id === 'joinForm') {
         body.boat = f0.dataset.boat;
