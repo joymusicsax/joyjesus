@@ -191,7 +191,7 @@
     if (m.status === '待船長聯繫') h += entryCard();
     h += introCard(m);
     var crewCircle = m.circle === '小船船員';
-    if (!crewCircle) h += seriesBlock('MAIN QUEST・團契主題');
+    if (!crewCircle) h += seriesBlock('MAIN QUEST・團契主題') + zoomBtn();
     var mq = mainQuest(), firstOpen = true;
     if (crewCircle || mq.list.length) h += '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;justify-content:space-between;align-items:baseline"><div><p class="kicker" style="color:var(--brick)">MAIN QUEST・主線</p><p class="h2" style="margin-top:2px">' + esc(mq.title) + '</p></div><p style="font-family:Fraunces,serif;font-style:italic;font-size:22px;color:var(--brick)">' + mq.done + ' / ' + mq.list.length + '</p></div>';
     h += '<div class="bar"><i style="width:' + (mq.list.length ? Math.round(mq.done / mq.list.length * 100) : 0) + '%"></i></div><div class="steps">';
@@ -208,7 +208,7 @@
       if (!mq.list.length) h += '<p class="tiny">這一季的任務還沒公布。</p>';
       h += '</div>' + (crewCircle ? '<p class="tiny">沒有截止日，準備好再出發。完成後按「回報完成」，船長確認後才會打勾。</p>' : '<p class="tiny">完成後按「回報完成」，由船長或督導確認。</p>') + '</div>';
     }
-    if (crewCircle) h += seriesBlock('SIDE QUEST・團契主題');
+    if (crewCircle) h += seriesBlock('SIDE QUEST・團契主題') + zoomBtn();
     var side = S.me.quests.filter(function (x) { return x.type === '支線'; }).sort(function (a, b) { return a.order - b.order; });
     var drew = store('joy-bless-day') === todayKey();
     {
@@ -288,6 +288,28 @@
     var nx = sr.weeks.filter(function (w) { return daysUntil(w.date) >= 0; })[0];
     h += '</div>' + (nx && nx.topic ? '<p class="small">下一次 ' + fmtWeek(nx) + '</p>' : '') + '<p class="tiny">要來的那一天按「✋ 參加」，讓同工提前知道人數；聚會後船長確認出席就會打勾。' + (S.me.member.isSupervisor ? '　<a href="#" data-act="deckmode" data-k="admin" style="font-weight:700">看舉手名單 →</a>' : '') + '</p></div></div>';
     return h;
+  }
+  var LOG_URL = 'https://miniapp.line.me/' + (CFG.liffIds ? CFG.liffIds.published : CFG.liffId) + '/log';
+  function seriesCalEvent(date) {
+    var sr = S.me.series, w = sr.weeks.filter(function (x) { return x.date === date; })[0] || { date: date };
+    return { key: 's:' + sr.id + ':' + date, title: sr.name + (w.topic ? '｜' + w.topic : ''), date: date, timeText: sr.time || sr.subtitle, note: (sr.subtitle ? sr.subtitle + '\n' : '') + '線上會議室連結在航海日誌「進入 ZOOM 會議室」', back: LOG_URL,
+      ics: location.origin + '/api/public/ics?series=' + sr.id + '&date=' + date };
+  }
+  function seriesCalSheet(date, justJoined) {
+    var ce = seriesCalEvent(date), w = S.me.series.weeks.filter(function (x) { return x.date === date; })[0];
+    var on = !!(store('joy-cal') || {})[ce.key];
+    openSheet(head(justJoined ? '✋ 舉手成功' : 'ADD TO CALENDAR', '#B07A2A', fmtWeek(w)) +
+      '<p class="small">' + (justJoined ? '謝謝你舉手！要不要順手加進日曆？到時候會提醒你，行程裡也有連結可以直接回到航海日誌。' : '加入日曆，行程裡有連結可以回到航海日誌。') + '</p>' +
+      (on ? '<p class="small" style="color:#2F7A44;font-weight:700">✓ 這一次已加入行事曆</p>' : '') +
+      '<button class="btn block" style="background:#B07A2A" data-act="scal-go" data-k="google" data-id="' + date + '">加入 Google 日曆</button>' +
+      '<button class="btn ghost block" data-act="scal-go" data-k="ics" data-id="' + date + '">加入 iPhone／其他日曆（.ics）</button>' +
+      '<button class="btn ghost block" data-act="close" style="color:var(--muted)">' + (justJoined ? '先不用' : '關閉') + '</button>');
+  }
+  function zoomBtn() {
+    var sr = S.me && S.me.series;
+    if (!sr || !sr.meetingUrl) return '';
+    return '<button class="btn block" data-act="zoom" style="background:#2D8CFF;display:flex;align-items:center;justify-content:center;gap:8px"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="3" fill="#fff"/><path d="M17 10l5-3v10l-5-3z" fill="#fff"/></svg>進入 ZOOM 會議室</button>' +
+      (sr.time ? '<p class="tiny" style="text-align:center;margin-top:-4px">每次聚會 ' + esc(sr.time) + '・可提早 10 分鐘進場</p>' : '');
   }
   function reportBtn(q, ghost) {
     if (q.pending) return pendingTag();
@@ -371,10 +393,10 @@
     return { allDay: false, start: date + 'T' + pad(sh) + ':' + pad(sm) + ':00', end: ed + 'T' + pad(eh) + ':' + pad(em) + ':00' };
   }
   function googleCalUrl(e) {
-    var t = parseTimes(e.date, e.note), dates;
+    var t = parseTimes(e.date, e.timeText || e.note), dates;
     if (t.allDay) { var x = new Date(e.date + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + 1); dates = e.date.replace(/-/g, '') + '/' + x.toISOString().slice(0, 10).replace(/-/g, ''); }
     else dates = t.start.replace(/[-:]/g, '') + '/' + t.end.replace(/[-:]/g, '');
-    return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent('揪喜樂｜' + e.title) + '&dates=' + dates + '&ctz=Asia/Taipei&details=' + encodeURIComponent((e.note ? e.note + '\n' : '') + '詳情：https://miniapp.line.me/2012557389-Jfp3TUw4/news');
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent('揪喜樂｜' + e.title) + '&dates=' + dates + '&ctz=Asia/Taipei&details=' + encodeURIComponent((e.note ? e.note + '\n' : '') + (e.back ? '打開航海日誌：' + e.back : '詳情：https://miniapp.line.me/2012557389-Jfp3TUw4/news'));
   }
   function openExternal(url) {
     if (window.liff && S.ready && liff.isInClient()) liff.openWindow({ url: url, external: true });
@@ -462,6 +484,8 @@
     h += '<div style="display:flex;flex-direction:column;gap:6px"><p style="font-size:13px;font-weight:700">主視覺</p><div id="visualPreview" style="aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#F3EBDD;display:flex;align-items:center;justify-content:center">' + (e.visual ? '<img src="' + esc(e.visual) + '" alt="" style="width:100%;height:100%;object-fit:cover">' : '<span class="tiny">還沒有主視覺（建議 16:9 橫式）</span>') + '</div><input type="file" name="visual" accept="image/jpeg,image/png,image/webp" style="font-size:13px"></div>';
     h += '<label class="field">系列名稱<input name="name" required maxlength="60" value="' + esc(e.name) + '" placeholder="例如：追星之旅"></label>';
     h += '<label class="field">副標（選填）<input name="subtitle" maxlength="120" value="' + esc(e.subtitle || '') + '" placeholder="例如：11 月團契系列・週二 21:00 線上"></label>';
+    h += '<label class="field">聚會時間（加入日曆用）<input name="time" maxlength="40" value="' + esc(e.time || '') + '" placeholder="例如：21:00–22:30"></label>';
+    h += '<label class="field">ZOOM 會議連結（只有登入的成員看得到）<input name="meetingUrl" type="url" maxlength="500" value="' + esc(e.meetingUrl || '') + '" placeholder="https://us06web.zoom.us/j/…"></label>';
     h += '<fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:8px"><legend style="font-size:13px;font-weight:700;margin-bottom:6px">聚會日期（4 週或 5 週，第 5 週可留空）</legend>';
     rows.forEach(function (w, i) {
       h += '<div style="display:grid;grid-template-columns:34px 140px 1fr;gap:6px;align-items:center"><span class="mono" style="font-size:12px;color:var(--brick)">W' + (i + 1) + '</span><input type="date" name="date' + i + '" value="' + esc(w.date || '') + '"' + (i < 4 ? ' ' : '') + ' style="border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit;font-size:14px"><input name="topic' + i + '" maxlength="80" value="' + esc(w.topic || '') + '" placeholder="這週主題" style="border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit;font-size:14px;min-width:0"></div>';
@@ -635,13 +659,22 @@
       var srA = S.me.series; srA.attendance = srA.attendance || {}; srA.counts = srA.counts || {};
       var prevA = srA.attendance[k];
       srA.attendance[k] = '待確認'; srA.counts[k] = (srA.counts[k] || 0) + 1; render();
+      seriesCalSheet(k, true);
       api('/api/series/report', { method: 'POST', body: { date: k, on: true } }).then(loadMe)
-        .catch(function (err) { srA.attendance[k] = prevA; srA.counts[k]--; render(); alert(err.message); });
+        .catch(function (err) { closeSheet(); srA.attendance[k] = prevA; srA.counts[k]--; render(); alert(err.message); });
     }
     else if (act === 'hand-off') {
       var srB = S.me.series, wB = srB.weeks.filter(function (x) { return x.date === k; })[0];
-      openSheet(head('✋ 已舉手', '#B07A2A', fmtWeek(wB)) + '<p class="small">你已經舉手要參加這一次聚會。臨時不能來的話，可以把手放下，讓同工抓準人數。</p><button class="btn ghost block" data-act="hand-cancel" data-k="' + k + '">放下手（不參加了）</button><button class="btn block" data-act="close">好，我會到</button>');
+      openSheet(head('✋ 已舉手', '#B07A2A', fmtWeek(wB)) + '<p class="small">你已經舉手要參加這一次聚會。臨時不能來的話，可以把手放下，讓同工抓準人數。</p><button class="btn block" data-act="close">好，我會到</button><button class="btn ghost block" data-act="scal" data-k="' + k + '">📅 加入日曆</button><button class="btn ghost block" data-act="hand-cancel" data-k="' + k + '" style="color:var(--muted)">放下手（不參加了）</button>');
     }
+    else if (act === 'scal') seriesCalSheet(k, false);
+    else if (act === 'scal-go') {
+      var sce = seriesCalEvent(el.dataset.id);
+      openExternal(k === 'google' ? googleCalUrl(sce) : sce.ics);
+      var sad = store('joy-cal') || {}; sad[sce.key] = Date.now(); store('joy-cal', sad);
+      closeSheet(); render();
+    }
+    else if (act === 'zoom') { openExternal(S.me.series.meetingUrl); }
     else if (act === 'hand-cancel') {
       var srC = S.me.series; el.disabled = true;
       api('/api/series/report', { method: 'POST', body: { date: k, on: false } })
@@ -724,7 +757,7 @@
       if (weeks.length < 4 && !confirm('只有 ' + weeks.length + ' 個聚會日期，確定要儲存嗎？')) return;
       var file = f0.elements.visual.files[0];
       sb.disabled = true; sb.textContent = '儲存中…';
-      api('/api/series/admin', { method: 'POST', body: { id: f0.dataset.id || null, name: f0.elements.name.value, subtitle: f0.elements.subtitle.value, weeks: weeks, current: f0.elements.current.checked } })
+      api('/api/series/admin', { method: 'POST', body: { id: f0.dataset.id || null, name: f0.elements.name.value, subtitle: f0.elements.subtitle.value, time: f0.elements.time.value, meetingUrl: f0.elements.meetingUrl.value, weeks: weeks, current: f0.elements.current.checked } })
         .then(function (j) {
           if (!file) return j;
           sb.textContent = '上傳主視覺中…';

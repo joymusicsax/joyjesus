@@ -35,6 +35,8 @@ export const onRequestPost = handle(async ({ env, request }) => {
     '系列名稱': W.title(name),
     '副標': String(b.subtitle || '').trim() ? W.text(String(b.subtitle).trim().slice(0, 120)) : { rich_text: [] },
     '目前系列': W.check(!!b.current),
+    '聚會時間': String(b.time || '').trim() ? W.text(String(b.time).trim().slice(0, 40)) : { rich_text: [] },
+    '會議連結': { url: /^https:\/\//.test(String(b.meetingUrl || '').trim()) ? String(b.meetingUrl).trim() : null },
   };
   for (let n = 1; n <= 5; n++) {
     const w = weeks[n - 1];
