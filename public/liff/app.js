@@ -1,0 +1,326 @@
+/* 揪喜樂航海日誌（LIFF）— 單頁應用，無需打包工具 */
+(function () {
+  'use strict';
+  var CFG = window.JOY_CONFIG || {};
+  var S = { ready: false, loggedIn: false, token: null, me: null, content: null, events: null, error: null, view: 'map', boardKind: 'pray', deckMode: null, filter: 'all', bless: -1 };
+  var $view = document.getElementById('view');
+  var $sheet = document.getElementById('sheet');
+
+  // ---------- 小工具 ----------
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function api(path, opts) {
+    opts = opts || {};
+    var headers = { 'Content-Type': 'application/json' };
+    if (S.token) headers.Authorization = 'Bearer ' + S.token;
+    return fetch(path, { method: opts.method || 'GET', headers: headers, body: opts.body ? JSON.stringify(opts.body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error || '連線失敗，請稍後再試'); return j; }); });
+  }
+  var WD = ['日', '一', '二', '三', '四', '五', '六'];
+  function md(d) { var x = new Date(d + 'T00:00:00+08:00'); return { m: x.getMonth() + 1, d: x.getDate(), wd: '週' + WD[x.getDay()] }; }
+  function daysUntil(d) { var t = new Date(); t.setHours(0, 0, 0, 0); return Math.round((new Date(d + 'T00:00:00+08:00') - t) / 864e5); }
+  function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } }
+  function login() {
+    if (window.liff && S.ready && !liff.isLoggedIn()) liff.login({ redirectUri: location.href });
+    else alert('請在 LINE 裡打開這個頁面');
+  }
+
+  // ---------- 啟動 ----------
+  function boot() {
+    var hasLiff = window.liff && CFG.liffId && CFG.liffId !== 'YOUR_LIFF_ID';
+    var p = hasLiff ? liff.init({ liffId: CFG.liffId }).then(function () {
+      S.ready = true;
+      S.loggedIn = liff.isLoggedIn();
+      if (S.loggedIn) S.token = liff.getIDToken();
+    }).catch(function (e) { S.error = 'LINE 初始化失敗：' + e.message; }) : Promise.resolve();
+    p.then(function () {
+      route();
+      api('/api/public/content').then(function (c) { S.content = c; render(); }).catch(function () {});
+      api('/api/public/events').then(function (e) { S.events = e.events; render(); }).catch(function () {});
+      if (S.token) loadMe();
+    });
+  }
+  function loadMe() {
+    return api('/api/me').then(function (j) { S.me = j; render(); }).catch(function (e) { S.meError = e.message; render(); });
+  }
+
+  // ---------- 路由 ----------
+  function route() {
+    var seg = location.pathname.replace(/^\/liff\/?/, '').split('/')[0];
+    S.view = ['log', 'news', 'deck'].indexOf(seg) >= 0 ? seg : 'map';
+    if (S.view !== 'map' && !S.loggedIn) { S.view = 'map'; }
+    render();
+  }
+  document.querySelector('.tabs').addEventListener('click', function (e) {
+    var a = e.target.closest('a'); if (!a) return;
+    e.preventDefault();
+    if (a.hasAttribute('data-lock') && !S.loggedIn) { login(); return; }
+    history.pushState(null, '', a.getAttribute('href'));
+    route(); window.scrollTo(0, 0);
+  });
+  window.addEventListener('popstate', route);
+
+  // ---------- 畫面 ----------
+  function render() {
+    document.querySelectorAll('.tabs a').forEach(function (a) {
+      a.toggleAttribute('aria-current', a.dataset.view === S.view);
+      if (a.dataset.view === S.view) a.setAttribute('aria-current', 'page');
+      a.classList.toggle('locked', a.hasAttribute('data-lock') && !S.loggedIn);
+    });
+    var cap = S.me && S.me.member && S.me.member.isCaptain;
+    document.getElementById('deckLabel').textContent = cap ? '船長甲板' : '船員甲板';
+    document.getElementById('topTitle').textContent = { map: '揪喜樂團契', log: '航海日誌', news: '聚會消息', deck: cap ? '船長甲板' : '船員甲板' }[S.view];
+    var html = S.error ? '<p class="err">' + esc(S.error) + '</p>' : '';
+    html += ({ map: viewMap, log: viewLog, news: viewNews, deck: viewDeck })[S.view]();
+    $view.innerHTML = html;
+  }
+  function spinner() { return '<div class="spin" role="status" aria-label="載入中"></div>'; }
+
+  // ----- 航海地圖 -----
+  function viewMap() {
+    var m = S.me && S.me.member;
+    var name = m ? m.name : (S.me ? S.me.user.name : '旅人');
+    var h = '<div><p class="h1">嗨，' + esc(name) + '</p><p class="tiny" style="margin-top:2px">今天也歡迎靠岸。</p></div>';
+    h += blessCard() + mapCard();
+    if (!S.loggedIn) h += '<div class="card"><p class="h2">用 LINE 登入，開始你的航程</p><p class="small" style="margin:6px 0 10px">航海日誌、聚會消息、船員甲板需要登入 LINE 才看得到。我們只會讀取你的 LINE 名稱。</p><button class="btn line" data-act="login">用 LINE 登入</button></div>';
+    else if (!S.me) h += spinner();
+    else if (!m) h += '<button class="card" data-act="quiz" style="text-align:left;display:flex;gap:12px;align-items:center;background:#FDF1EA;border-color:#F0C9B8"><span style="flex:1"><span class="h2" style="display:block">你還沒有小船</span><span class="small">三個問題，找到最適合你的入口。</span></span><span class="btn">開始</span></button>';
+    else h += voyageCard();
+    h += nextPortCard();
+    return h;
+  }
+  function blessCard() {
+    var list = (S.content && S.content.blessings) || [];
+    var b = S.bless >= 0 ? list[S.bless] : null;
+    return '<div class="card" style="display:flex;flex-direction:column;gap:8px"><p class="kicker" style="color:var(--brown)">BLESSING BOTTLE</p>' +
+      (b ? '<p style="font-size:15px;line-height:1.75;font-weight:700">' + esc(b.text) + '</p><p class="tiny">' + esc(b.ref) + '</p>'
+         : '<p class="small">今天需要一句話嗎？從漂流瓶裡抽一張祝福。</p>') +
+      '<button class="btn" style="background:var(--brown);align-self:flex-start" data-act="bless"' + (list.length ? '' : ' disabled') + '>' + (b ? '再抽一張' : '抽一張祝福') + '</button></div>';
+  }
+  function mapCard() {
+    return '<div class="map"><svg viewBox="0 0 1100 700" aria-hidden="true">' +
+      '<rect width="1100" height="700" fill="#5FB3C4"/>' +
+      '<path d="M330 300C340 210 470 170 580 190C700 205 790 240 780 320C772 390 700 430 600 430C470 440 330 400 330 300Z" fill="#F1E2C2"/>' +
+      '<path d="M380 290C390 230 480 210 560 222C650 232 720 262 712 315C700 360 640 380 560 380C470 384 375 350 380 290Z" fill="#A9CF8F"/>' +
+      '<rect x="515" y="266" width="60" height="38" fill="#FFF6E6"/><path d="M507 269L545 240L583 269Z" fill="#D9673F"/>' +
+      '<g transform="translate(640 380)"><g fill="none" stroke-width="7" opacity=".55"><path d="M10 110A110 110 0 0 1 230 110" stroke="#E5534B"/><path d="M20 110A100 100 0 0 1 220 110" stroke="#F2C14E"/><path d="M30 110A90 90 0 0 1 210 110" stroke="#5BAE6A"/><path d="M40 110A80 80 0 0 1 200 110" stroke="#4A7FC1"/></g><path d="M55 70L120 38L185 70Z" fill="#6B3F22"/><rect x="65" y="68" width="110" height="42" fill="#C98B4E"/><path d="M8 108L232 108L208 146Q120 160 32 146Z" fill="#8A5A34"/></g>' +
+      '<g transform="translate(150 560)"><path d="M0 0L72 0L60 20L12 20Z" fill="#C98B4E"/><path d="M39 -40L39 -4L66 -4Z" fill="#fff"/></g>' +
+      '<circle cx="300" cy="610" r="14" fill="none" stroke="#fff" stroke-width="9"/>' +
+      '<g transform="translate(860 230) rotate(-28)"><path d="M0 26L110 26L142 12L128 36L8 40Z" fill="#fff"/><path d="M50 26L68 12L92 12L92 26Z" fill="#7FB6C9"/></g>' +
+      '</svg>' +
+      '<button class="pin" style="left:69%;top:84%" data-act="sheet" data-k="ark"><b style="background:var(--brown)">01</b>方舟</button>' +
+      '<button class="pin" style="left:22%;top:72%" data-act="sheet" data-k="care"><b style="background:var(--brick)">02</b>小船</button>' +
+      '<button class="pin" style="left:86%;top:22%" data-act="sheet" data-k="sail"><b style="background:var(--teal)">03</b>快艇</button></div>';
+  }
+  function mainQuest() {
+    var q = (S.me && S.me.quests) || [];
+    var m = S.me.member;
+    var journey = m.circle === '小船船員' ? '登船之旅' : '季節航程';
+    var list = q.filter(function (x) { return x.type === '主線' && x.journey === journey; });
+    var season = list[0] && list[0].season;
+    if (season) list = list.filter(function (x) { return x.season === season; });
+    list.sort(function (a, b) { return a.order - b.order; });
+    return { title: season || journey, list: list, done: list.filter(function (x) { return x.done; }).length };
+  }
+  function voyageCard() {
+    var mq = mainQuest(), boat = S.me.boat;
+    var next = mq.list.filter(function (x) { return !x.done; })[0];
+    var pct = mq.list.length ? Math.round(mq.done / mq.list.length * 100) : 0;
+    return '<a class="card" href="/liff/log" data-nav style="text-decoration:none;color:inherit;display:flex;flex-direction:column;gap:10px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:baseline"><div><p class="kicker" style="color:var(--brick)">MY VOYAGE' + (boat ? '・' + esc(boat.name) : '') + '</p><p class="h2" style="margin-top:2px">' + esc(mq.title) + '</p></div>' +
+      '<p style="font-family:Fraunces,serif;font-style:italic;font-size:20px;color:var(--brick)">' + mq.done + ' / ' + mq.list.length + '</p></div>' +
+      '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
+      '<p class="small">' + (next ? '下一關：' + esc(next.name) : '這段航程完成了！') + '</p><span style="font-size:13px;font-weight:700;color:var(--brick)">打開航海日誌 →</span></a>';
+  }
+  function nextPortCard() {
+    var ev = S.events || [];
+    var f = ev.filter(function (e) { return e.featured; })[0] || ev[0];
+    if (!f) return '';
+    var d = md(f.date), n = daysUntil(f.date);
+    return '<div class="hero" style="flex-direction:row;align-items:center;gap:12px"><div style="flex:1"><p class="kicker" style="color:var(--gold)">NEXT PORT</p><p style="font-size:16px;font-weight:900;margin-top:3px">' + d.m + '/' + d.d + '（' + d.wd.slice(1) + '）' + esc(f.title) + '</p><p style="font-size:12px;color:#C9D3DF;margin-top:2px">' + (n > 0 ? '還有 ' + n + ' 天' : '就是今天') + (f.kind ? '・' + esc(f.kind) : '') + '</p></div>' +
+      (S.loggedIn ? '<a class="btn" style="background:var(--gold);color:var(--navy)" href="/liff/news" data-nav>看詳情</a>' : '') + '</div>';
+  }
+
+  // ----- 航海日誌 -----
+  function viewLog() {
+    if (!S.me) return S.meError ? '<p class="err">' + esc(S.meError) + '</p>' : spinner();
+    var m = S.me.member;
+    if (!m) return '<div class="card"><p class="h2">你還沒有小船</p><p class="small" style="margin:6px 0 12px">做完三題小測驗，登上適合你的小船，航海日誌就會開始記錄你的航程。</p><button class="btn" data-act="quiz">開始測驗</button></div>';
+    var boat = S.me.boat, color = boat ? boat.color : 'var(--brick)';
+    var h = '<div class="card" style="display:flex;gap:14px;align-items:center"><span class="avatar" style="width:56px;height:56px;background:' + esc(color) + ';color:#fff;font-size:20px">' + esc(m.name.slice(0, 1)) + '</span><div><p class="kicker" style="color:' + esc(color) + '">' + esc(boat ? boat.en : 'ON BOARD') + '</p><p class="h1" style="margin-top:2px">' + esc(m.name) + '</p><p class="small">' + esc((boat ? boat.name + '・' : '') + m.circle + (m.status ? '・' + m.status : '')) + '</p></div></div>';
+    if (boat && boat.captain) h += '<div class="card" style="display:flex;align-items:center;gap:12px"><span class="avatar" style="width:40px;height:40px;background:var(--gold)">' + esc(boat.captain.slice(0, 1)) + '</span><div style="flex:1"><p class="tiny">你的船長</p><p style="font-weight:700">' + esc(boat.captain) + (boat.sailors.length ? ' ＋ 水手 ' + esc(boat.sailors.join('、')) : '') + '</p></div></div>';
+    var mq = mainQuest(), firstOpen = true;
+    h += '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;justify-content:space-between;align-items:baseline"><div><p class="kicker" style="color:var(--brick)">MAIN QUEST・主線</p><p class="h2" style="margin-top:2px">' + esc(mq.title) + '</p></div><p style="font-family:Fraunces,serif;font-style:italic;font-size:22px;color:var(--brick)">' + mq.done + ' / ' + mq.list.length + '</p></div>';
+    h += '<div class="bar"><i style="width:' + (mq.list.length ? Math.round(mq.done / mq.list.length * 100) : 0) + '%"></i></div><div class="steps">';
+    mq.list.forEach(function (q) {
+      var isNext = !q.done && firstOpen; if (isNext) firstOpen = false;
+      h += '<div class="step' + (isNext ? ' next' : '') + '"><span class="chk' + (q.done ? ' on' : '') + '"></span><div style="flex:1"><p style="font-size:14px;' + (isNext ? 'font-weight:700' : '') + '" class="' + (q.done ? 'done-text' : '') + '">' + esc(q.name) + '</p>' + (isNext && q.note ? '<p class="tiny" style="margin-top:3px">' + esc(q.note) + '</p>' : '') + '</div>' +
+        (isNext && q.how === '本人勾選' ? '<button class="btn" style="padding:6px 12px;font-size:12px" data-act="complete" data-id="' + q.id + '">完成</button>' : '') + '</div>';
+    });
+    if (!mq.list.length) h += '<p class="tiny">這一季的任務還沒公布。</p>';
+    h += '</div>' + (m.circle === '小船船員' ? '<p class="tiny">沒有截止日，準備好再出發。</p>' : '<p class="tiny">聚會簽到後會自動完成這一關。</p>') + '</div>';
+    var side = S.me.quests.filter(function (x) { return x.type === '支線'; }).sort(function (a, b) { return a.order - b.order; });
+    if (side.length) {
+      h += '<div class="card" style="display:flex;flex-direction:column;gap:10px"><p class="kicker" style="color:var(--brown)">SIDE QUEST・支線</p>';
+      side.forEach(function (q) {
+        var right = q.how === '本人勾選' && !q.done ? '<button class="btn ghost" style="padding:5px 11px;font-size:12px" data-act="complete" data-id="' + q.id + '">完成</button>'
+          : q.badge && q.badge !== '無' ? '<span style="display:flex;gap:3px">' + [0, 1, 2].map(function (i) { return '<span class="dot" style="width:7px;height:7px;background:' + (i < q.done ? 'var(--brown)' : '#E6DECF') + '"></span>'; }).join('') + '</span>'
+          : '<span class="tiny">' + (q.done ? '已完成' : '未開始') + '</span>';
+        h += '<div class="row"><span style="flex:1"><span style="display:block;font-size:14px;font-weight:700">' + esc(q.name) + '</span>' + (q.note ? '<span class="tiny">' + esc(q.note) + '</span>' : '') + '</span>' + right + '</div>';
+      });
+      h += '</div>';
+    }
+    return h;
+  }
+
+  // ----- 聚會消息 -----
+  function viewNews() {
+    if (!S.events) return spinner();
+    var ev = S.events;
+    var f = ev.filter(function (e) { return e.featured; })[0];
+    var h = '';
+    if (f) { var d = md(f.date), n = daysUntil(f.date); h += '<div class="hero"><div style="display:flex;justify-content:space-between"><p class="kicker" style="color:var(--gold)">NEXT PORT</p><p style="font-size:12px;color:#C9D3DF">' + (n > 0 ? '還有 <b style="font-family:Fraunces,serif;font-style:italic;font-size:20px;color:var(--gold)">' + n + '</b> 天' : '就是今天') + '</p></div><p style="font-size:22px;font-weight:900">' + esc(f.title) + '</p><p style="font-size:13px;color:#C9D3DF">' + d.m + '/' + d.d + '（' + d.wd.slice(1) + '）' + (f.kind ? '・' + esc(f.kind) + '聚會' : '') + '</p>' + (f.link ? '<a class="btn" style="background:var(--gold);color:var(--navy);align-self:flex-start;margin-top:6px" href="' + esc(f.link) + '" target="_blank" rel="noopener">看詳情</a>' : '') + '</div>'; }
+    h += '<div class="chips" role="group" aria-label="篩選聚會">' + [['all', '全部'], ['線上', '線上'], ['實體', '實體']].map(function (c) { return '<button class="chip" data-act="filter" data-k="' + c[0] + '" aria-pressed="' + (S.filter === c[0]) + '">' + c[1] + '</button>'; }).join('') + '</div>';
+    var list = ev.filter(function (e) { return S.filter === 'all' || e.kind === S.filter; });
+    if (!list.length) return h + '<p class="empty">目前沒有聚會消息。</p>';
+    var lastM = null;
+    list.forEach(function (e) {
+      var d = md(e.date), on = e.kind === '線上';
+      if (d.m !== lastM) { h += '<p style="font-size:13px;font-weight:700;color:var(--muted);margin-top:4px">' + d.m + ' 月</p>'; lastM = d.m; }
+      var inner = '<div class="date" style="background:' + (on ? '#EEF3FA' : '#F6EEE2') + ';color:' + (on ? '#2B5A8F' : '#8A5A34') + '"><b>' + d.d + '</b><span style="font-size:11px">' + d.wd + '</span></div><div style="flex:1;min-width:0"><p style="font-size:15px;font-weight:700">' + esc(e.title) + '</p><p class="tiny" style="margin-top:3px">' + esc(e.type || '') + '</p></div>' + (e.kind ? '<span class="tag" style="background:' + (on ? '#E3ECF7' : '#E3EFE3') + ';color:' + (on ? '#2B5A8F' : '#2F7A44') + '">' + esc(e.kind) + '</span>' : '');
+      h += e.link ? '<a class="row" href="' + esc(e.link) + '" target="_blank" rel="noopener" style="border-radius:16px;padding:12px">' + inner + '</a>' : '<div class="row" style="border-radius:16px;padding:12px">' + inner + '</div>';
+    });
+    return h + '<p class="tiny" style="text-align:center">時間地點以 LINE 群組公告為準</p>';
+  }
+
+  // ----- 船員甲板／船長甲板 -----
+  function viewDeck() {
+    if (!S.me) return S.meError ? '<p class="err">' + esc(S.meError) + '</p>' : spinner();
+    var m = S.me.member;
+    if (!m) return '<div class="card"><p class="h2">登上小船之後就能使用船員甲板</p><p class="small" style="margin:6px 0 12px">在這裡可以彼此代禱、提出問題，也可以匿名。</p><button class="btn" data-act="quiz">找到我的小船</button></div>';
+    if (m.isCaptain && S.deckMode !== 'board') return viewCaptain();
+    return viewBoard(m.isCaptain);
+  }
+  function viewCaptain() {
+    var crew = S.me.crew || [];
+    var week = crew.filter(function (c) { return c.joined && daysUntil(c.joined) > -8; }).length;
+    var care = crew.filter(function (c) { return c.needsCare; });
+    var boatNames = S.me.boat ? S.me.boat.name : '';
+    var h = '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div><p class="kicker" style="color:#9A7012">CAPTAIN\'S DECK</p><p class="h2" style="margin-top:2px">' + esc(S.me.member.name) + ' 船長</p><p class="small">' + esc(boatNames) + '</p></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' + [[crew.length, '船員', ''], [week, '本週新上船', ''], [care.length, '需要你關心', 'color:var(--brick)']].map(function (x) { return '<div style="background:#F6EEE2;border-radius:12px;padding:10px;text-align:center"><p style="font-family:Fraunces,serif;font-style:italic;font-size:24px;' + x[2] + '">' + x[0] + '</p><p style="font-size:11px;' + x[2] + '">' + x[1] + '</p></div>'; }).join('') + '</div></div>';
+    if (care.length) { h += '<p style="font-size:13px;font-weight:700;color:var(--brick)">需要你關心</p>'; care.forEach(function (c) { h += crewRow(c, true); }); }
+    h += '<p style="font-size:13px;font-weight:700;color:var(--ink2)">我的船員</p>';
+    h += crew.length ? crew.map(function (c) { return crewRow(c, false); }).join('') : '<p class="empty">還沒有船員登船。</p>';
+    h += '<button class="btn ghost block" data-act="deckmode" data-k="board">看代禱與提問板</button>';
+    h += '<p class="tiny" style="background:#F6EEE2;border-radius:12px;padding:12px;line-height:1.7">你只看得到自己船上的船員。關懷紀錄請在 Notion「成員名冊」更新「最後互動日」。</p>';
+    return h;
+  }
+  function crewRow(c, careMode) {
+    var sub = careMode ? (c.lastContact ? '上次互動 ' + c.lastContact : '還沒有互動紀錄') : (c.status || '') + '・已完成 ' + c.done + ' 個任務';
+    return '<div class="row"' + (careMode ? ' style="border-color:#F0C9B8"' : '') + '><span class="avatar" style="background:#DCE6F2">' + esc((c.name || '?').slice(0, 1)) + '</span><span style="flex:1"><span style="display:block;font-size:14px;font-weight:700">' + esc(c.name) + '</span><span class="tiny">' + esc(sub) + '</span></span>' + (c.status === '待船長聯繫' ? '<span class="tag" style="background:#FDF1EA;color:var(--brick)">新上船</span>' : '') + '</div>';
+  }
+  function viewBoard(isCaptain) {
+    var h = '';
+    if (isCaptain) h += '<button class="btn ghost" style="align-self:flex-start" data-act="deckmode" data-k="captain">← 回船長甲板</button>';
+    h += '<div><p class="kicker" style="color:var(--brick)">CREW DECK</p><p class="h1" style="margin-top:3px">在甲板上，彼此守望</p><p class="small" style="margin-top:4px">可以匿名。只有團契成員看得到這裡的內容。</p></div>';
+    h += '<div class="seg" role="tablist"><button role="tab" data-act="kind" data-k="pray" aria-selected="' + (S.boardKind === 'pray') + '">代禱事項</button><button role="tab" data-act="kind" data-k="ask" aria-selected="' + (S.boardKind === 'ask') + '">提問板</button></div>';
+    var b = S.board && S.board.kind === S.boardKind ? S.board : null;
+    if (!b) { loadBoard(); return h + spinner(); }
+    var hearted = store('joy-hearted') || {};
+    var pray = S.boardKind === 'pray';
+    h += b.posts.length ? b.posts.map(function (p) {
+      var on = !!hearted[p.id];
+      var t = new Date(p.time);
+      return '<article class="card post"><div style="display:flex;align-items:center;gap:10px"><span class="avatar" style="background:' + (p.anon ? '#F6EEE2' : '#DCE6F2') + '">' + esc(p.anon ? '匿' : p.name.slice(0, 1)) + '</span><div><p style="font-size:14px;font-weight:700">' + esc(p.name) + '</p><p class="tiny">' + (t.getMonth() + 1) + '/' + t.getDate() + '</p></div></div><p class="text">' + esc(p.text) + '</p><div style="display:flex;align-items:center;gap:10px"><button class="heart" data-act="heart" data-id="' + p.id + '" aria-pressed="' + on + '"' + (on ? ' disabled' : '') + '>♥ ' + (pray ? (on ? '已為你禱告' : '為你禱告') : '我也想知道') + ' ' + p.hearts + '</button><span class="tiny">' + (p.replies ? p.replies + (pray ? ' 則回應' : ' 則回覆') : '還沒有回應') + '</span></div></article>';
+    }).join('') : '<p class="empty">' + (pray ? '還沒有代禱事項。' : '還沒有人發問。') + '</p>';
+    h += '<button class="btn dark fab" data-act="compose">＋ ' + (pray ? '寫下代禱' : '我要發問') + '</button>';
+    return h;
+  }
+  function loadBoard() {
+    if (S.boardLoading === S.boardKind) return;
+    S.boardLoading = S.boardKind;
+    api('/api/board?kind=' + S.boardKind).then(function (j) { S.board = j; S.boardLoading = null; render(); })
+      .catch(function (e) { S.boardLoading = null; S.board = { kind: S.boardKind, posts: [] }; S.meError = e.message; render(); });
+  }
+
+  // ---------- 底部面板 ----------
+  function openSheet(inner) {
+    $sheet.innerHTML = '<div class="sheet" role="dialog" aria-modal="true"><div class="grip"></div>' + inner + '</div>';
+    $sheet.hidden = false;
+  }
+  function closeSheet() { $sheet.hidden = true; $sheet.innerHTML = ''; }
+  $sheet.addEventListener('click', function (e) { if (e.target === $sheet) closeSheet(); });
+  function head(kicker, color, title) { return '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div><p class="kicker" style="color:' + color + '">' + kicker + '</p><p class="h1" style="margin-top:3px">' + esc(title) + '</p></div><button class="x" data-act="close" aria-label="關閉">×</button></div>'; }
+  function sheetFor(k) {
+    var c = S.content || { boats: [], teams: [] };
+    if (k === 'ark') return openSheet(head('ENTRY 01・方舟', 'var(--brown)', '認識揪喜樂') + '<p class="small">在線上相遇，在生活中同行，在世界中成為祝福。</p><p style="background:#F6EEE2;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7">建立性別友善的福音動態團體，向酷兒分享好消息。</p><a class="btn block" style="background:var(--brown)" href="' + esc(CFG.instagram) + '" target="_blank" rel="noopener">追蹤 Instagram</a><a class="btn ghost block" href="/" target="_blank" rel="noopener">看揪喜樂官網</a>');
+    if (k === 'care') return openSheet(head('ENTRY 02・小船', 'var(--brick)', '找到安全的地方') + '<p class="small">給還在探索信仰或身分、受過傷，或只是好奇的你。</p><p style="background:#F6EEE2;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7">陪伴不是拯救。你可以帶著問號上船，照自己的節奏前進。</p>' + c.boats.map(function (b) { return '<div class="row"><span class="dot" style="background:' + esc(b.color) + '"></span><span style="font-size:14px;font-weight:700;flex:1">' + esc(b.name) + '</span><span class="tiny">' + esc(b.tagline) + '</span></div>'; }).join('') + ((S.me && S.me.member) ? '' : '<button class="btn block" data-act="quiz">做 3 題小測驗，找到你的船</button>'));
+    if (k === 'sail') return openSheet(head('ENTRY 03・快艇', 'var(--teal)', '一起出航') + '<p class="small">給想成為同工、執行外展專案的你。有分工表、有懶人包，不會讓你一個人扛。</p>' + c.teams.map(function (t) { return '<div class="row"><span class="dot" style="background:var(--teal)"></span><span style="flex:1"><span style="display:block;font-size:14px;font-weight:700">' + esc(t.name) + '</span><span class="tiny">' + esc(t.desc) + '</span></span><span class="tiny">' + esc(t.commitment.join('・')) + '</span></div>'; }).join('') + '<a class="btn block" style="background:var(--teal)" href="' + esc(CFG.lineOA) + '" target="_blank" rel="noopener">我想加入，私訊 LINE@</a>');
+  }
+  var QS = [
+    ['你和基督信仰的關係，比較像？', ['剛開始認識，有點好奇', '曾經很投入，但受過傷', '信仰穩定，想多理解同志基督徒']],
+    ['現在的你，最需要的是？', ['有人回答我的疑問', '有人好好聽我說', '學習怎麼陪伴別人']],
+    ['上船之後，你希望…', ['慢慢認識耶穌', '找到可以重新靠岸的地方', '和同志基督徒一起同行']]
+  ];
+  var BOATS = ['恩典漂漂船', '浪子返航號', '摩西分海號'];
+  var quizAns = [];
+  function quizStep() {
+    if (quizAns.length < 3) {
+      var q = QS[quizAns.length];
+      return openSheet(head('QUESTION ' + (quizAns.length + 1) + ' / 3', 'var(--brick)', q[0]) + q[1].map(function (o, i) { return '<button class="row" data-act="answer" data-k="' + i + '" style="text-align:left;padding:15px 14px"><span class="mono" style="color:var(--brick);font-size:12px">' + 'ABC'[i] + '</span><span style="font-size:15px">' + esc(o) + '</span></button>'; }).join(''));
+    }
+    var cnt = [0, 0, 0]; quizAns.forEach(function (a) { cnt[a]++; });
+    var max = Math.max.apply(null, cnt), r = cnt[quizAns[0]] === max ? quizAns[0] : cnt.indexOf(max);
+    var info = ((S.content && S.content.boats) || []).filter(function (b) { return b.name === BOATS[r]; })[0] || { name: BOATS[r], en: '', color: '#B8503A', result: '' };
+    openSheet(head('YOUR BOAT', esc(info.color), info.name) + '<p class="small">' + esc(info.result) + '</p><p class="tiny">登船後，船長會在 24 小時內親自跟你打招呼。</p><button class="btn dark block" data-act="board-boat" data-k="' + esc(info.name) + '">登上這艘船</button><button class="btn ghost block" data-act="quiz">重新測一次</button>');
+  }
+
+  // ---------- 事件 ----------
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-act],[data-nav]'); if (!el) return;
+    if (el.hasAttribute('data-nav')) { e.preventDefault(); history.pushState(null, '', el.getAttribute('href')); route(); window.scrollTo(0, 0); return; }
+    var act = el.dataset.act, k = el.dataset.k;
+    if (act === 'login') login();
+    else if (act === 'bless') { var n = ((S.content && S.content.blessings) || []).length; if (n) { S.bless = n === 1 ? 0 : (S.bless < 0 ? Math.floor(Math.random() * n) : (S.bless + 1 + Math.floor(Math.random() * (n - 1))) % n); render(); } }
+    else if (act === 'sheet') sheetFor(k);
+    else if (act === 'close') closeSheet();
+    else if (act === 'quiz') { quizAns = []; quizStep(); }
+    else if (act === 'answer') { quizAns.push(+k); quizStep(); }
+    else if (act === 'board-boat') {
+      if (!S.loggedIn) return login();
+      el.disabled = true; el.textContent = '登船中…';
+      api('/api/join', { method: 'POST', body: { boat: k } }).then(function () { closeSheet(); return loadMe(); })
+        .catch(function (err) { el.disabled = false; el.textContent = '登上這艘船'; alert(err.message); });
+    }
+    else if (act === 'complete') {
+      el.disabled = true;
+      api('/api/complete', { method: 'POST', body: { questId: el.dataset.id } }).then(loadMe).catch(function (err) { el.disabled = false; alert(err.message); });
+    }
+    else if (act === 'filter') { S.filter = k; render(); }
+    else if (act === 'kind') { S.boardKind = k; render(); }
+    else if (act === 'deckmode') { S.deckMode = k; render(); }
+    else if (act === 'heart') {
+      var hearted = store('joy-hearted') || {}; if (hearted[el.dataset.id]) return;
+      el.disabled = true;
+      api('/api/board/heart', { method: 'POST', body: { id: el.dataset.id } }).then(function (j) {
+        hearted[el.dataset.id] = 1; store('joy-hearted', hearted);
+        S.board.posts.forEach(function (p) { if (p.id === el.dataset.id) p.hearts = j.hearts; }); render();
+      }).catch(function (err) { el.disabled = false; alert(err.message); });
+    }
+    else if (act === 'compose') {
+      var pray = S.boardKind === 'pray';
+      openSheet(head(pray ? 'PRAYER' : 'QUESTION', 'var(--brick)', pray ? '寫下代禱事項' : '我要發問') +
+        '<form id="composeForm" style="display:flex;flex-direction:column;gap:12px"><label class="field">稱呼<input name="name" maxlength="30" placeholder="暱稱就好"></label><label class="field">' + (pray ? '代禱內容' : '你的問題') + '<textarea name="text" rows="4" maxlength="1000" required placeholder="' + (pray ? '想請大家為什麼禱告？' : '關於信仰、團契或聚會，什麼都可以問') + '"></textarea></label><label style="display:flex;align-items:center;gap:10px;font-size:14px"><input type="checkbox" name="anon" checked style="width:20px;height:20px;accent-color:#B8503A"> 匿名送出（顯示為「匿名旅人」）</label><button class="btn block" type="submit">送出</button></form>');
+    }
+  });
+  document.addEventListener('submit', function (e) {
+    if (e.target.id !== 'composeForm') return;
+    e.preventDefault();
+    var f = e.target, btn = f.querySelector('button[type=submit]');
+    btn.disabled = true; btn.textContent = '送出中…';
+    api('/api/board', { method: 'POST', body: { kind: S.boardKind, text: f.elements.text.value, name: f.elements.name.value, anon: f.elements.anon.checked } })
+      .then(function () { closeSheet(); S.board = null; render(); })
+      .catch(function (err) { btn.disabled = false; btn.textContent = '送出'; alert(err.message); });
+  });
+
+  boot();
+})();
