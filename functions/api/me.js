@@ -104,7 +104,9 @@ export const onRequestGet = handle(async ({ env, request }) => {
   const myBoats = captainBoats(m, bm);
   if (myBoats.length || sup) {
     const rows = await queryAll(env, DB.members, {});
-    const crewRows = rows.filter((r) => id(r) !== memberId && myBoats.includes(boatOf(r, bm)) && !P.multi(r, '同工角色').includes('船長'));
+    // 督導看得到每一艘船的船員；船長看自己的船
+    const seeBoats = sup ? bm.boats.map(id) : myBoats;
+    const crewRows = rows.filter((r) => id(r) !== memberId && seeBoats.includes(boatOf(r, bm)) && !P.multi(r, '同工角色').includes('船長'));
     const allPending = await queryAll(env, DB.logs, { filter: { property: '確認狀態', select: { equals: '待確認' } } });
     const crewIds = new Set(crewRows.map(id));
     const byId = {}; rows.forEach((r) => { byId[id(r)] = r; });
