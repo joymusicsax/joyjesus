@@ -1,5 +1,14 @@
 // LINE MINI App「揪喜樂航海日誌」（頻道 2012557387，Provider：揪喜樂團契）
 // 三個版本各有自己的 LIFF ID。端點網址加上 ?env=dev / ?env=review 來分辨；沒加就是正式版。
+// LINE Login 只接受「端點網址」所在的網域。端點目前登記在 joyjesus-web.pages.dev，
+// 從其他網域（joyjesus.com）進來就先轉過去，避免 access.line.me 400 Bad Request。
+(function () {
+  var ENDPOINT_HOST = 'joyjesus-web.pages.dev';
+  var h = location.hostname;
+  if (h !== ENDPOINT_HOST && h !== 'localhost' && h.indexOf('127.') !== 0) {
+    location.replace('https://' + ENDPOINT_HOST + location.pathname + location.search + location.hash);
+  }
+})();
 window.JOY_CONFIG = {
   liffIds: {
     dev: '2012557387-XkSSWmOo',
