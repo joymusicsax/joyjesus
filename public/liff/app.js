@@ -614,33 +614,36 @@
     var all = S.me.quests.filter(function (x) { return x.type === '成長任務'; }).sort(byOrder);
     if (!all.length) return '';
     var small = m.circle === '小船船員';
-    var open = all.filter(function (q) { return small ? q.layer === '小船' : q.layer !== '小船'; });
     var h = '';
     // 這個月一件小事：小船問卷選的那一個，放最上面
     var sv = S.me.survey || {}, pick = sv.small && sv.small.oneThingQuest;
     var pq = pick && all.filter(function (q) { return q.name === pick; })[0];
     if (pq && !pq.done) h += '<div class="card" style="display:flex;flex-direction:column;gap:8px;border:2px solid #E9C46A"><p class="kicker" style="color:#9A7012">THIS MONTH・這個月一件小事</p><p class="small">你在問卷裡說想試試這個。慢慢來，不用急。</p>' + growthRow(pq) + '</div>';
-    var done = open.filter(function (q) { return q.done; }).length;
-    h += '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div style="display:flex;justify-content:space-between;align-items:baseline"><div><p class="kicker" style="color:#2F7A44">GROWTH・成長任務</p><p class="h2" style="margin-top:2px">' + (small ? '小船任務板' : '大船任務板') + '</p></div><p style="font-family:Fraunces,serif;font-style:italic;font-size:22px;color:#2F7A44">' + done + ' / ' + open.length + '</p></div>';
-    h += '<p class="tiny">三種難度自由選，沒有順序、沒有截止日。</p>';
-    stageGroups(open).forEach(function (g) {
-      h += '<div style="display:flex;flex-direction:column;gap:8px"><p style="font-size:13px;font-weight:700;color:var(--ink2);margin-top:4px">' + esc(g.stage) + (STAGE_NOTE[g.stage] ? '<span class="tiny" style="font-weight:400">　' + STAGE_NOTE[g.stage] + '</span>' : '') + '</p>' + g.list.map(growthRow).join('') + '</div>';
-    });
-    if (!small) {
-      var past = all.filter(function (q) { return q.layer === '小船'; });
-      if (past.length) h += '<details><summary class="tiny" style="cursor:pointer;padding:4px 0">小船任務（' + past.filter(function (q) { return q.done; }).length + ' / ' + past.length + '）</summary><div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">' + past.map(growthRow).join('') + '</div></details>';
+    // Lv1–Lv5 頁籤
+    var groups = stageGroups(all);
+    var lockedG = function (g) { return g.list.every(function (q) { return q.locked; }); };
+    if (!S.stageTab || !groups.some(function (g) { return g.stage === S.stageTab; })) {
+      var open = groups.filter(function (g) { return !lockedG(g); });
+      var firstTodo = open.filter(function (g) { return g.list.some(function (q) { return !q.done; }); })[0];
+      // 大船預設從 Lv3 開始；小船從第一個還沒做完的開始
+      var bigStart = !small && open.filter(function (g) { return /^L[3-5]/.test(g.stage) && g.list.some(function (q) { return !q.done; }); })[0];
+      S.stageTab = (bigStart || firstTodo || open[0] || groups[0]).stage;
     }
-    h += '</div>';
-    if (small) {
-      var locked = all.filter(function (q) { return q.layer !== '小船'; });
-      var roleN = S.me.quests.filter(function (x) { return x.type === '角色任務'; }).length;
-      if (locked.length) {
-        h += '<div class="card" style="display:flex;flex-direction:column;gap:10px;background:#F7F3EC"><p class="kicker" style="color:#8C8170">🔒 待解鎖・大船任務</p><p class="small">登上大船之後，這些任務就會打開。現在先看看前面的風景。</p>';
-        h += '<details><summary class="tiny" style="cursor:pointer;padding:4px 0">看看有哪些（' + locked.length + ' 個成長任務' + (roleN ? '＋' + roleN + ' 個角色任務' : '') + '）</summary><div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">';
-        stageGroups(locked).forEach(function (g) { h += '<p style="font-size:13px;font-weight:700;color:var(--ink2)">' + esc(g.stage) + '</p>' + g.list.map(growthRow).join(''); });
-        h += '</div></details></div>';
-      }
+    var cur = groups.filter(function (g) { return g.stage === S.stageTab; })[0];
+    var totalOpen = all.filter(function (q) { return !q.locked; });
+    h += '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div style="display:flex;justify-content:space-between;align-items:baseline"><div><p class="kicker" style="color:#2F7A44">GROWTH・成長任務</p><p class="h2" style="margin-top:2px">任務板</p></div><p style="font-family:Fraunces,serif;font-style:italic;font-size:22px;color:#2F7A44">' + totalOpen.filter(function (q) { return q.done; }).length + ' / ' + totalOpen.length + '</p></div>';
+    h += '<div role="tablist" style="display:grid;grid-template-columns:repeat(' + groups.length + ',1fr);gap:4px">' + groups.map(function (g) {
+      var on = g.stage === S.stageTab, lk = lockedG(g), dn = g.list.filter(function (q) { return q.done; }).length;
+      var lv = (g.stage.match(/^L(\d)/) || [])[1] || '';
+      return '<button role="tab" aria-selected="' + on + '" data-act="stage-tab" data-k="' + esc(g.stage) + '" style="border:0;border-radius:10px;padding:8px 2px;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px;background:' + (on ? '#2F7A44' : (lk ? '#EEE9E0' : '#E7F3EA')) + ';color:' + (on ? '#fff' : (lk ? '#8C8170' : '#2F7A44')) + '"><span style="font-family:Fraunces,serif;font-style:italic;font-size:15px;font-weight:700">' + (lk ? '🔒' : '') + 'Lv' + lv + '</span><span style="font-size:10px">' + (lk ? '待解鎖' : dn + '/' + g.list.length) + '</span></button>';
+    }).join('') + '</div>';
+    if (cur) {
+      var lkCur = lockedG(cur), lvn = +((cur.stage.match(/^L(\d)/) || [])[1] || 0);
+      h += '<div><p style="font-size:15px;font-weight:700">' + esc(cur.stage.replace(/^L\d\s*/, '')) + (!small && lvn && lvn <= 2 ? '<span class="tag" style="background:#FFF4D6;color:#9A7012;margin-left:6px">初心者挑戰</span>' : '') + '</p>' + (STAGE_NOTE[cur.stage] ? '<p class="tiny">' + STAGE_NOTE[cur.stage] + '</p>' : '') + '</div>';
+      if (lkCur) h += '<p class="small" style="background:#F7F3EC;border-radius:12px;padding:10px 12px">登上大船之後，這一層的任務就會打開。現在先看看前面的風景。</p>';
+      h += cur.list.map(growthRow).join('');
     }
+    h += '<p class="tiny">三種難度自由選，沒有順序、沒有截止日。' + (small ? '' : '大船夥伴也可以回頭完成 Lv1–Lv2 的初心者挑戰。') + '</p></div>';
     return h;
   }
   function roleCard(m) {
@@ -790,6 +793,7 @@
       el.disabled = true; el.textContent = '送出中…';
       api('/api/complete', { method: 'POST', body: { questId: el.dataset.id } }).then(loadMe).catch(function (err) { el.disabled = false; el.textContent = '我要挑戰'; alert(err.message); });
     }
+    else if (act === 'stage-tab') { S.stageTab = k; render(); }
     else if (act === 'task-write') { var tq = questById(el.dataset.id); if (tq) writeSheet(tq); }
     else if (act === 'task-deck') { S.boardKind = k || 'pray'; S.deckMode = 'board'; S.openThread = null; history.pushState(null, '', '/liff/deck'); route(); window.scrollTo(0, 0); }
     else if (act === 'survey') surveySheet(k);
