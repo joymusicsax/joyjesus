@@ -68,3 +68,5 @@ label.field input,label.field textarea,label.field select{border:1px solid var(-
 .err{background:#FDF1EA;color:#8E3B29;border-radius:12px;padding:12px;font-size:14px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 label.field[hidden]{display:none}
+#surveyForm textarea,#surveyForm .input{border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;font-size:15px;background:#fff;width:100%;box-sizing:border-box}
+details>summary{list-style:none}details>summary::-webkit-details-marker{display:none}details>summary::before{content:'▸ '}details[open]>summary::before{content:'▾ '}

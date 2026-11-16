@@ -2,13 +2,15 @@
 // GET  /api/board/replies?post=<留言 id>
 // POST /api/board/replies  body: { post, text, name, anon }
 // 匿名回應時，稱呼一律存成「匿名旅人」，不記錄 LINE userId。
-import { DB, notion, queryAll, createPage, P, W, id, handle, json, verifyLine, findMember, readJson, HttpError } from '../../../lib/notion.js';
+import { DB, notion, queryAll, createPage, P, W, id, handle, json, verifyLine, findMember, readJson, HttpError, autoComplete } from '../../../lib/notion.js';
 
 const okId = (x) => /^[0-9a-f]{32}$/.test(String(x || '').replace(/-/g, ''));
 
 async function requireMember(env, request) {
   const user = await verifyLine(env, request);
-  if (!(await findMember(env, user.userId))) throw new HttpError(403, '登上小船之後就能使用船員甲板');
+  const m = await findMember(env, user.userId);
+  if (!m) throw new HttpError(403, '登上小船之後就能使用船員甲板');
+  return m;
 }
 async function requirePost(env, postId) {
   if (!okId(postId)) throw new HttpError(400, '找不到這則留言');
@@ -34,7 +36,7 @@ export const onRequestGet = handle(async ({ env, request }) => {
 });
 
 export const onRequestPost = handle(async ({ env, request }) => {
-  await requireMember(env, request);
+  const m = await requireMember(env, request);
   const body = await readJson(request);
   await requirePost(env, body.post);
   const text = String(body.text || '').trim();
@@ -47,5 +49,7 @@ export const onRequestPost = handle(async ({ env, request }) => {
     '回覆對象': W.rel([String(body.post).replace(/-/g, '')]),
     '是否想匿名': W.check(anon),
   });
-  return json({ ok: true });
+  // 成長任務「在船員甲板回應一則代禱或提問」：送出就完成（任務紀錄只記在本人名下，留言本身仍維持匿名）
+  const done = await autoComplete(env, m, '甲板回應').catch((e) => { console.error(e); return []; });
+  return json({ ok: true, done });
 });

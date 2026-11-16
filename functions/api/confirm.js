@@ -2,7 +2,7 @@
 // body: { logId, action: 'confirm' | 'reject' }
 // 權限：這位船員所在的船，我是船長；或我是督導。不能確認自己的回報。
 import { notion, updatePage, P, W, id, handle, json, verifyLine, findMember, readJson, nowTW, HttpError,
-  boatMap, boatOf, captainBoats, isSupervisor } from '../../lib/notion.js';
+  boatMap, boatOf, captainBoats, isSupervisor, thankMember } from '../../lib/notion.js';
 
 export const onRequestPost = handle(async ({ env, request }) => {
   const user = await verifyLine(env, request);
@@ -30,6 +30,14 @@ export const onRequestPost = handle(async ({ env, request }) => {
     '確認日期': W.datetime(now),
   });
   // 確認也算一次互動
-  if (action === 'confirm') await updatePage(env, crewId, { '最後互動日': W.datetime(now) }).catch(() => {});
+  if (action === 'confirm') {
+    await updatePage(env, crewId, { '最後互動日': W.datetime(now) }).catch(() => {});
+    // 任務的「感謝回饋」用 LINE@ 推給船員（系列聚會出席不推）
+    const qid = P.rel(lg, '任務')[0];
+    if (qid) {
+      const q = await notion(env, 'pages/' + qid, null, 'GET').catch(() => null);
+      if (q && P.text(q, '感謝回饋')) await thankMember(env, crew, P.title(q, '任務名稱'), P.text(q, '感謝回饋')).catch(() => {});
+    }
+  }
   return json({ ok: true });
 });

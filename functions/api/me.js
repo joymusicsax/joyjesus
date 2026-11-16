@@ -1,7 +1,8 @@
 // GET /api/me — 登入者自己的航海日誌資料（需要 LINE 登入）
 import { DB, notion, queryAll, P, id, handle, json, verifyLine, findMember,
   boatMap, boatOf, captainBoats, isSupervisor, logConfirmed, ENTRY_GROUP_URL, ENTRY_GROUP_MSG,
-  currentSeries, seriesAttendance, todayTW } from '../../lib/notion.js';
+  currentSeries, seriesAttendance, todayTW, questLocked } from '../../lib/notion.js';
+import { ONE_THING_MAP } from '../../lib/survey.js';
 
 export const onRequestGet = handle(async ({ env, request }) => {
   const user = await verifyLine(env, request);
@@ -23,6 +24,10 @@ export const onRequestGet = handle(async ({ env, request }) => {
     all.forEach((lg) => { if (P.select(lg, '確認狀態') === '退回') return; const d = (P.date(lg, '系列聚會日') || '').slice(0, 10); if (d) counts[d] = (counts[d] || 0) + 1; });
     return { ...s, attendance, counts };
   }).catch((e) => { console.error(e); return null; });
+  const surveysP = queryAll(env, DB.survey, {
+    filter: { property: '成員', relation: { contains: memberId } },
+    sorts: [{ property: '送出時間', direction: 'descending' }],
+  }).catch(() => []);
   const [quests, logs, bm] = await Promise.all([
     queryAll(env, DB.quests, {
       filter: { property: '啟用', checkbox: { equals: true } },
@@ -56,6 +61,16 @@ export const onRequestGet = handle(async ({ env, request }) => {
       note: P.text(q, 'LIFF 顯示說明'),
       done: doneCount[id(q)] || 0,
       pending: !!pendingQ[id(q)],
+      // 成長任務／角色任務
+      layer: P.select(q, '任務圈層'),
+      stage: P.select(q, '階段'),
+      level: P.select(q, '難度'),
+      roleTags: P.multi(q, '角色'),
+      roleTier: P.select(q, '角色層次'),
+      check: P.select(q, '檢核方式'),
+      prompt: P.text(q, '送出內容'),
+      thanks: P.text(q, '感謝回饋'),
+      locked: questLocked(m, q),
     }));
 
   // 徽章：所有設了徽章的任務（不分圈層），已確認完成就點亮
@@ -101,7 +116,23 @@ export const onRequestGet = handle(async ({ env, request }) => {
     const doneBy = {};
     confirmedLogs.filter(logConfirmed).forEach((lg) => P.rel(lg, '成員').forEach((x) => { doneBy[x] = (doneBy[x] || 0) + 1; }));
 
+    // 船員的探索問卷（只給船長／督導看）
+    const surveyRows = crewRows.length
+      ? await queryAll(env, DB.survey, { filter: { or: crewRows.slice(0, 90).map((r) => ({ property: '成員', relation: { contains: id(r) } })) },
+          sorts: [{ property: '送出時間', direction: 'descending' }] }).catch(() => [])
+      : [];
+    const surveyOf = (mid) => {
+      const rs = surveyRows.filter((x) => P.rel(x, '成員').includes(mid));
+      const sm = rs.find((x) => P.select(x, '問卷') === '小船問卷');
+      const bg = rs.find((x) => P.select(x, '問卷') === '大船問卷');
+      if (!sm && !bg) return null;
+      return {
+        small: sm ? { expect: P.multi(sm, '期待'), interact: P.multi(sm, '互動偏好'), cared: P.multi(sm, '被關心的方式'), support: P.multi(sm, '陪伴方式'), roles: P.multi(sm, '角色'), oneThing: P.text(sm, '這個月一件小事') } : null,
+        big: bg ? { roles: P.multi(bg, '角色'), ready: P.multi(bg, '可以立即嘗試'), learn: P.multi(bg, '希望有人陪著學'), not: P.multi(bg, '目前不想承擔'), time: P.select(bg, '每月時間'), team: P.select(bg, '合作方式'), term: P.select(bg, '承擔多久'), need: P.multi(bg, '需要的支持'), mission: P.text(bg, '使命宣言') } : null,
+      };
+    };
     crew = crewRows.map((r) => ({
+      survey: surveyOf(id(r)),
       boat: P.title(bm.byId[boatOf(r, bm)], '船名'),
       name: P.title(r, '暱稱'),
       status: P.select(r, '狀態'),
@@ -131,6 +162,15 @@ export const onRequestGet = handle(async ({ env, request }) => {
       });
   }
 
+  const mySurveys = await surveysP;
+  const lastOf = (t) => mySurveys.find((r) => P.select(r, '問卷') === t);
+  const sm = lastOf('小船問卷'), bg = lastOf('大船問卷');
+  const oneThing = sm ? P.text(sm, '這個月一件小事') : '';
+  const survey = {
+    small: sm ? { at: P.date(sm, '送出時間'), oneThing, oneThingQuest: ONE_THING_MAP[oneThing] || null, roles: P.multi(sm, '角色') } : null,
+    big: bg ? { at: P.date(bg, '送出時間'), roles: P.multi(bg, '角色'), mission: P.text(bg, '使命宣言') } : null,
+  };
+
   return json({
     user: { name: user.name },
     member: {
@@ -145,7 +185,9 @@ export const onRequestGet = handle(async ({ env, request }) => {
       intro: P.text(m, '自我介紹'),
       introScope: P.select(m, '介紹公開範圍') || '只給船長',
       region: P.text(m, '居住地區') || P.select(m, '地區') || '',
+      partRoles: P.multi(m, '參與角色'),
     },
+    survey,
     boat,
     quests: questList,
     series: await seriesP,

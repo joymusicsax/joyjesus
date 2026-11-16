@@ -209,6 +209,7 @@
       h += '</div>' + (crewCircle ? '<p class="tiny">沒有截止日，準備好再出發。按「我要挑戰」，船長確認後才會打勾。</p>' : '<p class="tiny">按「我要挑戰」，由船長或督導確認。</p>') + '</div>';
     }
     if (crewCircle) h += seriesBlock('SIDE QUEST・團契主題') + zoomBtn();
+    h += growthBoard(m);
     var side = S.me.quests.filter(function (x) { return x.type === '支線'; }).sort(function (a, b) { return a.order - b.order; });
     var drew = store('joy-bless-day') === todayKey();
     {
@@ -222,6 +223,7 @@
       });
       h += '</div>';
     }
+    h += roleCard(m);
     h += badgeShelf(boat);
     return h;
   }
@@ -464,6 +466,7 @@
     if (care.length) { h += '<p style="font-size:13px;font-weight:700;color:var(--brick)">需要你關心</p>'; care.forEach(function (c) { h += crewRow(c, true); }); }
     h += '<p style="font-size:13px;font-weight:700;color:var(--ink2)">我的船員</p>';
     h += crew.length ? crew.map(function (c) { return crewRow(c, false); }).join('') : '<p class="empty">還沒有船員登船。</p>';
+    if (S.me.member.isSupervisor) h += '<button class="btn block" style="background:#8A3B6A" data-act="rolemap">🎭 角色地圖（大船問卷）</button>';
     if (S.me.member.isSupervisor) h += '<button class="btn block" style="background:var(--navy)" data-act="deckmode" data-k="admin">🎨 團契系列管理（主視覺・聚會日期）</button>';
     h += '<button class="btn ghost block" data-act="deckmode" data-k="board">看代禱、提問與船員介紹</button>';
     h += '<p class="tiny" style="background:#F6EEE2;border-radius:12px;padding:12px;line-height:1.7">你只看得到自己船上的船員。新船員會先進入口群組，請邀請他加入你的小船群組。確認任務時會自動更新「最後互動日」。</p>';
@@ -522,7 +525,7 @@
   }
   function crewRow(c, careMode) {
     var sub = careMode ? (c.lastContact ? '上次互動 ' + c.lastContact : '還沒有互動紀錄') : (c.status || '') + '・已完成 ' + c.done + ' 個任務';
-    return '<div class="row"' + (careMode ? ' style="border-color:#F0C9B8"' : '') + '><span class="avatar" style="background:#DCE6F2">' + esc((c.name || '?').slice(0, 1)) + '</span><span style="flex:1"><span style="display:block;font-size:14px;font-weight:700">' + esc(c.name) + '</span><span class="tiny">' + esc(sub) + '</span></span>' + (c.status === '待船長聯繫' ? '<span class="tag" style="background:#FDF1EA;color:var(--brick)">新上船</span>' : '') + '</div>';
+    return '<div class="row"' + (careMode ? ' style="border-color:#F0C9B8"' : '') + '><span class="avatar" style="background:#DCE6F2">' + esc((c.name || '?').slice(0, 1)) + '</span><span style="flex:1"><span style="display:block;font-size:14px;font-weight:700">' + esc(c.name) + '</span><span class="tiny">' + esc(sub) + '</span></span>' + (c.status === '待船長聯繫' ? '<span class="tag" style="background:#FDF1EA;color:var(--brick)">新上船</span>' : '') + (!careMode && c.survey ? '<button class="btn ghost" style="padding:5px 10px;font-size:12px;white-space:nowrap" data-act="crew-survey" data-k="' + (S.me.crew || []).indexOf(c) + '">📋 問卷</button>' : '') + '</div>';
   }
   function viewBoard(isCaptain) {
     var h = '';
@@ -576,6 +579,169 @@
       .catch(function (e) { S.boardLoading = null; S.board = { kind: S.boardKind, posts: [] }; S.meError = e.message; render(); });
   }
 
+  // ---------- 船員探索與培力：成長任務、角色任務、問卷 ----------
+  var LEVEL_COLOR = { '微參與': ['#E7F3EA', '#2F7A44'], '主動參與': ['#E6EEF7', '#2B5C8A'], '共同實踐': ['#F6E7F0', '#8A3B6A'] };
+  var STAGE_NOTE = { 'L1 安心歸屬': '先找到一個安心的位置', 'L2 關係互動': '和夥伴開始有來往', 'L3 主動貢獻': '把自己擁有的帶進來', 'L4 共同創造': '和夥伴一起做出新東西', 'L5 共同承擔': '一起為更大的需要負責' };
+  var ROLE_ICON = { 陪伴者: '🤝', 創作者: '🎨', 引導者: '📖', 行動者: '🧭', 連結者: '🔗', 倡議者: '📣', 陪伴: '🤝', 分享: '💬', 連結: '🔗', 探索: '🔍', 鼓勵: '🌱' };
+  function levelTag(l) { if (!l) return ''; var c = LEVEL_COLOR[l] || ['#F6EEE2', '#8A5A34']; return '<span class="tag" style="background:' + c[0] + ';color:' + c[1] + '">' + esc(l) + '</span>'; }
+  function growthAction(q) {
+    if (q.done) return '<span class="tag" style="background:#E7F3EA;color:#2F7A44">✓ 完成</span>';
+    if (q.pending) return pendingTag();
+    if (q.locked) return '<span class="tag" style="background:#EEE9E0;color:#8C8170">🔒 待解鎖</span>';
+    var b = function (label, act, k) { return '<button class="btn ghost" style="padding:6px 12px;font-size:12px;white-space:nowrap" data-act="' + act + '" data-id="' + q.id + '"' + (k ? ' data-k="' + k + '"' : '') + '>' + label + '</button>'; };
+    if (q.check === '文字送出') return b('寫下來', 'task-write');
+    if (q.check === '甲板回應') return b('去甲板', 'task-deck', 'pray');
+    if (q.check === '為你禱告') return b('去甲板', 'task-deck', 'pray');
+    if (q.check === '小船問卷') return b('填問卷', 'survey', 'small');
+    if (q.check === '大船問卷') return b('填問卷', 'survey', 'big');
+    return reportBtn(q, true);
+  }
+  function growthHint(q) {
+    if (q.locked || q.done || q.pending) return '';
+    if (q.check === '甲板回應' || q.check === '為你禱告' || q.check === '文字送出' || /問卷/.test(q.check || '')) return '送出就完成';
+    return '完成後按「我要挑戰」，船長確認';
+  }
+  function growthRow(q) {
+    var hint = growthHint(q);
+    return '<div class="row" style="align-items:flex-start' + (q.locked ? ';opacity:.62' : '') + '"><span style="flex:1;min-width:0"><span style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px">' + levelTag(q.level || q.roleTier) + '</span><span style="display:block;font-size:14px;font-weight:700" class="' + (q.done ? 'done-text' : '') + '">' + esc(q.name) + '</span>' + (q.note ? '<span class="tiny" style="display:block;margin-top:2px">' + esc(q.note) + '</span>' : '') + (hint ? '<span class="tiny" style="display:block;margin-top:2px;color:var(--muted)">' + hint + '</span>' : '') + '</span>' + growthAction(q) + '</div>';
+  }
+  function byOrder(a, b) { return a.order - b.order; }
+  function stageGroups(list) {
+    var st = []; list.forEach(function (q) { if (st.indexOf(q.stage) < 0) st.push(q.stage); });
+    return st.map(function (s) { return { stage: s, list: list.filter(function (q) { return q.stage === s; }) }; });
+  }
+  function growthBoard(m) {
+    var all = S.me.quests.filter(function (x) { return x.type === '成長任務'; }).sort(byOrder);
+    if (!all.length) return '';
+    var small = m.circle === '小船船員';
+    var open = all.filter(function (q) { return small ? q.layer === '小船' : q.layer !== '小船'; });
+    var h = '';
+    // 這個月一件小事：小船問卷選的那一個，放最上面
+    var sv = S.me.survey || {}, pick = sv.small && sv.small.oneThingQuest;
+    var pq = pick && all.filter(function (q) { return q.name === pick; })[0];
+    if (pq && !pq.done) h += '<div class="card" style="display:flex;flex-direction:column;gap:8px;border:2px solid #E9C46A"><p class="kicker" style="color:#9A7012">THIS MONTH・這個月一件小事</p><p class="small">你在問卷裡說想試試這個。慢慢來，不用急。</p>' + growthRow(pq) + '</div>';
+    var done = open.filter(function (q) { return q.done; }).length;
+    h += '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div style="display:flex;justify-content:space-between;align-items:baseline"><div><p class="kicker" style="color:#2F7A44">GROWTH・成長任務</p><p class="h2" style="margin-top:2px">' + (small ? '小船任務板' : '大船任務板') + '</p></div><p style="font-family:Fraunces,serif;font-style:italic;font-size:22px;color:#2F7A44">' + done + ' / ' + open.length + '</p></div>';
+    h += '<p class="tiny">三種難度自由選，沒有順序、沒有截止日。</p>';
+    stageGroups(open).forEach(function (g) {
+      h += '<div style="display:flex;flex-direction:column;gap:8px"><p style="font-size:13px;font-weight:700;color:var(--ink2);margin-top:4px">' + esc(g.stage) + (STAGE_NOTE[g.stage] ? '<span class="tiny" style="font-weight:400">　' + STAGE_NOTE[g.stage] + '</span>' : '') + '</p>' + g.list.map(growthRow).join('') + '</div>';
+    });
+    if (!small) {
+      var past = all.filter(function (q) { return q.layer === '小船'; });
+      if (past.length) h += '<details><summary class="tiny" style="cursor:pointer;padding:4px 0">小船任務（' + past.filter(function (q) { return q.done; }).length + ' / ' + past.length + '）</summary><div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">' + past.map(growthRow).join('') + '</div></details>';
+    }
+    h += '</div>';
+    if (small) {
+      var locked = all.filter(function (q) { return q.layer !== '小船'; });
+      var roleN = S.me.quests.filter(function (x) { return x.type === '角色任務'; }).length;
+      if (locked.length) {
+        h += '<div class="card" style="display:flex;flex-direction:column;gap:10px;background:#F7F3EC"><p class="kicker" style="color:#8C8170">🔒 待解鎖・大船任務</p><p class="small">登上大船之後，這些任務就會打開。現在先看看前面的風景。</p>';
+        h += '<details><summary class="tiny" style="cursor:pointer;padding:4px 0">看看有哪些（' + locked.length + ' 個成長任務' + (roleN ? '＋' + roleN + ' 個角色任務' : '') + '）</summary><div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">';
+        stageGroups(locked).forEach(function (g) { h += '<p style="font-size:13px;font-weight:700;color:var(--ink2)">' + esc(g.stage) + '</p>' + g.list.map(growthRow).join(''); });
+        h += '</div></details></div>';
+      }
+    }
+    return h;
+  }
+  function roleCard(m) {
+    var small = m.circle === '小船船員', sv = S.me.survey || {};
+    var h = '<div class="card" style="display:flex;flex-direction:column;gap:10px"><p class="kicker" style="color:#8A3B6A">MY ROLE・我的角色</p>';
+    if (small) {
+      if (!sv.small) return h + '<p class="small">花 5 分鐘做「我在這裡，想找到什麼？」，讓船長更知道怎麼陪你。</p><button class="btn block" style="background:#8A3B6A" data-act="survey" data-k="small">填小船探索問卷</button></div>';
+      h += '<p class="small">你在群體裡比較像：</p><div style="display:flex;gap:6px;flex-wrap:wrap">' + (sv.small.roles.length ? sv.small.roles.map(function (r) { return '<span class="tag" style="background:#F6E7F0;color:#8A3B6A;font-size:13px">' + (ROLE_ICON[r] || '') + ' ' + esc(r) + '</span>'; }).join('') : '<span class="tiny">還在探索中</span>') + '</div>';
+      return h + '<button class="btn ghost block" data-act="survey" data-k="small">重新填寫問卷</button></div>';
+    }
+    var roles = (m.partRoles && m.partRoles.length) ? m.partRoles : (sv.big ? sv.big.roles : []);
+    var rq = S.me.quests.filter(function (x) { return x.type === '角色任務'; }).sort(byOrder);
+    if (!roles.length) {
+      h += '<p class="small">做「我的恩賜與使命探索」，選出最吸引你的三種角色，任務板會出現適合你的角色任務。</p><button class="btn block" style="background:#8A3B6A" data-act="survey" data-k="big">填大船探索問卷</button>';
+    } else {
+      h += '<div style="display:flex;gap:6px;flex-wrap:wrap">' + roles.map(function (r) { return '<span class="tag" style="background:#F6E7F0;color:#8A3B6A;font-size:13px">' + (ROLE_ICON[r] || '') + ' ' + esc(r) + '</span>'; }).join('') + '</div>';
+      if (sv.big && sv.big.mission) h += '<p style="background:#F6EEE2;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7">' + esc(sv.big.mission) + '</p>';
+      var mine = rq.filter(function (q) { return q.roleTags.some(function (t) { return roles.indexOf(t) >= 0; }); });
+      roles.forEach(function (r) {
+        var list = mine.filter(function (q) { return q.roleTags.indexOf(r) >= 0; });
+        if (list.length) h += '<p style="font-size:13px;font-weight:700;color:var(--ink2);margin-top:4px">' + (ROLE_ICON[r] || '') + ' ' + esc(r) + '</p>' + list.map(growthRow).join('');
+      });
+      var other = rq.filter(function (q) { return mine.indexOf(q) < 0; });
+      if (other.length) h += '<details><summary class="tiny" style="cursor:pointer;padding:4px 0">其他角色任務（' + other.length + '）</summary><div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">' + other.map(growthRow).join('') + '</div></details>';
+      h += '<button class="btn ghost block" data-act="survey" data-k="big">重新探索角色</button>';
+    }
+    return h + '</div>';
+  }
+  function thanksSheet(name, thanks) {
+    openSheet(head('MISSION COMPLETE', '#2F7A44', '🎉 ' + (name || '任務完成')) + '<p style="font-size:15px;line-height:1.8">' + esc(thanks || '謝謝你，我們都看見了。') + '</p><button class="btn block" data-act="close">好</button>');
+  }
+  function showDone(done) { if (done && done.length) thanksSheet(done[0].name, done[0].thanks); }
+  function questById(qid) { return (S.me.quests || []).filter(function (q) { return q.id === qid; })[0]; }
+  function writeSheet(q) {
+    openSheet(head('SHARE', '#2F7A44', q.name) + (q.prompt ? '<p class="small">' + esc(q.prompt) + '</p>' : '') + '<form id="taskForm" data-id="' + q.id + '" style="display:flex;flex-direction:column;gap:12px"><label class="field">想分享的內容<textarea name="text" rows="5" maxlength="2000" required placeholder="寫下來就好，不用完美"></textarea></label><p class="tiny">只有你、你的船長和督導看得到。送出就完成任務。</p><button class="btn block" type="submit">送出</button></form>');
+  }
+  // 問卷表單
+  var SURVEY_CACHE = {};
+  function surveySheet(type) {
+    if (!SURVEY_CACHE[type]) {
+      openSheet(head('SURVEY', '#8A3B6A', '載入問卷中…') + spinner());
+      api('/api/survey?type=' + type).then(function (j) { SURVEY_CACHE[type] = j.survey; surveySheet(type); }).catch(function (err) { closeSheet(); alert(err.message); });
+      return;
+    }
+    var s = SURVEY_CACHE[type];
+    var h = head(type === 'small' ? '小船探索問卷' : '大船探索問卷', '#8A3B6A', s.title) + '<p class="small">' + esc(s.intro) + '</p><form id="surveyForm" data-type="' + type + '" style="display:flex;flex-direction:column;gap:16px">';
+    s.sections.forEach(function (sec) {
+      h += '<div style="display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--line);padding-top:12px"><p class="h2">' + esc(sec.title) + '</p>' + (sec.note ? '<p class="tiny">' + esc(sec.note) + '</p>' : '');
+      sec.items.forEach(function (it) {
+        var nm = 'q_' + it.key;
+        h += '<fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:6px"><legend style="font-size:14px;font-weight:700;margin-bottom:6px">' + esc(it.q) + (it.optional ? '<span class="tiny" style="font-weight:400">（選填）</span>' : '') + (it.type === 'multi' ? '<span class="tiny" style="font-weight:400">（可複選）</span>' : '') + '</legend>';
+        if (it.type === 'multi' || it.type === 'pick' || it.type === 'single') {
+          var t = it.type === 'single' ? 'radio' : 'checkbox';
+          it.options.forEach(function (o) {
+            h += '<label style="display:flex;align-items:flex-start;gap:10px;font-size:14px;line-height:1.5"><input type="' + t + '" name="' + nm + '" value="' + esc(o) + '"' + (it.max ? ' data-max="' + it.max + '"' : '') + ' style="width:20px;height:20px;flex:none;accent-color:#8A3B6A"><span>' + (ROLE_ICON[o] && it.desc ? ROLE_ICON[o] + ' ' : '') + '<b style="font-weight:' + (it.desc ? 700 : 400) + '">' + esc(o) + '</b>' + (it.desc && it.desc[o] ? '<span class="tiny" style="display:block">' + esc(it.desc[o]) + '</span>' : '') + '</span></label>';
+          });
+        } else if (it.type === 'scale') {
+          h += '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">' + [1, 2, 3, 4, 5].map(function (n) { return '<label style="display:flex;flex-direction:column;align-items:center;gap:2px;font-size:13px;background:#F6EEE2;border-radius:10px;padding:8px 0"><input type="radio" name="' + nm + '" value="' + n + '" style="width:20px;height:20px;accent-color:#8A3B6A">' + n + '</label>'; }).join('') + '</div><p class="tiny" style="display:flex;justify-content:space-between"><span>完全不符合</span><span>非常符合</span></p>';
+        } else if (it.short) {
+          h += '<input name="' + nm + '" maxlength="60" class="input">';
+        } else {
+          h += '<textarea name="' + nm + '" rows="3" maxlength="500"></textarea>';
+        }
+        h += '</fieldset>';
+      });
+      h += '</div>';
+    });
+    h += '<button class="btn block" style="background:#8A3B6A" type="submit">送出問卷</button></form>';
+    openSheet(h);
+  }
+  function collectSurvey(f, type) {
+    var s = SURVEY_CACHE[type], out = {};
+    s.sections.forEach(function (sec) { sec.items.forEach(function (it) {
+      var nm = 'q_' + it.key;
+      if (it.type === 'multi' || it.type === 'pick') out[it.key] = [].slice.call(f.querySelectorAll('input[name="' + nm + '"]:checked')).map(function (x) { return x.value; });
+      else if (it.type === 'single' || it.type === 'scale') { var c = f.querySelector('input[name="' + nm + '"]:checked'); out[it.key] = c ? (it.type === 'scale' ? +c.value : c.value) : null; }
+      else out[it.key] = (f.elements[nm] && f.elements[nm].value) || '';
+    }); });
+    return out;
+  }
+  function surveyView(sv) {
+    if (!sv) return '<p class="tiny">還沒有填探索問卷。</p>';
+    var line = function (k, v) { v = Array.isArray(v) ? v.join('、') : v; return v ? '<p style="font-size:13px;line-height:1.6"><b>' + k + '</b>　' + esc(v) + '</p>' : ''; };
+    var h = '';
+    if (sv.small) h += '<p class="kicker" style="color:#8A3B6A">小船問卷</p>' + line('期待', sv.small.expect) + line('喜歡的互動', sv.small.interact) + line('被關心的方式', sv.small.cared) + line('困難時希望', sv.small.support) + line('比較像', sv.small.roles) + line('這個月一件小事', sv.small.oneThing);
+    if (sv.big) h += '<p class="kicker" style="color:#8A3B6A;margin-top:8px">大船問卷</p>' + line('最吸引的角色', sv.big.roles) + line('可以立即嘗試', sv.big.ready) + line('希望有人陪著學', sv.big.learn) + line('目前不想承擔', sv.big.not) + line('每月時間', sv.big.time) + line('合作方式', sv.big.team) + line('承擔多久', sv.big.term) + line('需要的支持', sv.big.need) + (sv.big.mission ? '<p style="background:#F6EEE2;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7">' + esc(sv.big.mission) + '</p>' : '');
+    return h;
+  }
+  function roleMapSheet() {
+    openSheet(head('ROLE MAP', '#8A3B6A', '角色地圖') + spinner());
+    api('/api/rolemap').then(function (j) {
+      var h = head('ROLE MAP', '#8A3B6A', '角色地圖') + '<p class="tiny">來自大船問卷。✓ 可以立即嘗試、🌱 希望有人陪著學。</p>';
+      j.roles.forEach(function (g) {
+        h += '<div style="display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:10px"><p style="font-size:14px;font-weight:700">' + (ROLE_ICON[g.role] || '') + ' ' + esc(g.role) + '（' + g.people.length + '）<span class="tiny" style="font-weight:400">　' + esc(g.desc) + '</span></p>';
+        h += g.people.length ? g.people.map(function (p) { return '<p style="font-size:13px">' + esc(p.name) + (p.ready ? ' ✓' : '') + (p.learn ? ' 🌱' : '') + '<span class="tiny">　' + esc([p.circle, p.time, p.team, p.term].filter(Boolean).join('・')) + '</span></p>'; }).join('') : '<p class="tiny">還沒有人</p>';
+        h += '</div>';
+      });
+      openSheet(h);
+    }).catch(function (err) { closeSheet(); alert(err.message); });
+  }
+
   // ---------- 底部面板 ----------
   function openSheet(inner) {
     $sheet.innerHTML = '<div class="sheet" role="dialog" aria-modal="true"><div class="grip"></div>' + inner + '</div>';
@@ -624,6 +790,11 @@
       el.disabled = true; el.textContent = '送出中…';
       api('/api/complete', { method: 'POST', body: { questId: el.dataset.id } }).then(loadMe).catch(function (err) { el.disabled = false; el.textContent = '我要挑戰'; alert(err.message); });
     }
+    else if (act === 'task-write') { var tq = questById(el.dataset.id); if (tq) writeSheet(tq); }
+    else if (act === 'task-deck') { S.boardKind = k || 'pray'; S.deckMode = 'board'; S.openThread = null; history.pushState(null, '', '/liff/deck'); route(); window.scrollTo(0, 0); }
+    else if (act === 'survey') surveySheet(k);
+    else if (act === 'rolemap') roleMapSheet();
+    else if (act === 'crew-survey') { var cc = (S.me.crew || [])[+k]; if (cc) openSheet(head('CREW', 'var(--navy)', cc.name + ' 的探索問卷') + '<p class="tiny">只有你和督導看得到，用來更懂得怎麼陪伴他。</p>' + surveyView(cc.survey)); }
     else if (act === 'confirm') {
       el.disabled = true;
       api('/api/confirm', { method: 'POST', body: { logId: el.dataset.id, action: k } }).then(loadMe).catch(function (err) { el.disabled = false; alert(err.message); });
@@ -693,6 +864,7 @@
       api('/api/board/heart', { method: 'POST', body: { id: el.dataset.id } }).then(function (j) {
         hearted[el.dataset.id] = 1; store('joy-hearted', hearted);
         S.board.posts.forEach(function (p) { if (p.id === el.dataset.id) p.hearts = j.hearts; }); render();
+        if (j.done && j.done.length) { showDone(j.done); loadMe(); }
       }).catch(function (err) { el.disabled = false; alert(err.message); });
     }
     else if (act === 'compose') {
@@ -705,6 +877,11 @@
     if (e.target.name === 'visual' && e.target.files && e.target.files[0]) {
       var pv = document.getElementById('visualPreview');
       if (pv) pv.innerHTML = '<img src="' + URL.createObjectURL(e.target.files[0]) + '" alt="" style="width:100%;height:100%;object-fit:cover">';
+      return;
+    }
+    if (e.target.dataset && e.target.dataset.max && e.target.checked) {
+      var mx = +e.target.dataset.max, grp = document.querySelectorAll('input[name="' + e.target.name + '"]:checked');
+      if (grp.length > mx) { e.target.checked = false; alert('最多選 ' + mx + ' 個'); }
       return;
     }
     if (e.target.name !== 'place') return;
@@ -742,11 +919,30 @@
       var txt = f0.elements.text.value.trim(); if (!txt) return;
       rb.disabled = true; rb.textContent = '送出中…';
       api('/api/board/replies', { method: 'POST', body: { post: pid, text: txt, name: f0.elements.name.value, anon: f0.elements.anon.checked } })
-        .then(function () {
+        .then(function (j) {
           (S.board.posts || []).forEach(function (p) { if (p.id === pid) p.replies++; });
+          if (j && j.done && j.done.length) { showDone(j.done); loadMe(); }
           return loadThread(pid);
         })
         .catch(function (err) { rb.disabled = false; rb.textContent = '送出'; alert(err.message); });
+      return;
+    }
+    if (f0.id === 'taskForm') {
+      e.preventDefault();
+      var tb = f0.querySelector('button[type=submit]'), tq2 = questById(f0.dataset.id);
+      tb.disabled = true; tb.textContent = '送出中…';
+      api('/api/task/submit', { method: 'POST', body: { questId: f0.dataset.id, text: f0.elements.text.value } })
+        .then(function (j) { thanksSheet(tq2 && tq2.name, j.thanks || (tq2 && tq2.thanks)); return loadMe(); })
+        .catch(function (err) { tb.disabled = false; tb.textContent = '送出'; alert(err.message); });
+      return;
+    }
+    if (f0.id === 'surveyForm') {
+      e.preventDefault();
+      var stype = f0.dataset.type, sbtn = f0.querySelector('button[type=submit]');
+      sbtn.disabled = true; sbtn.textContent = '送出中…';
+      api('/api/survey', { method: 'POST', body: { type: stype, answers: collectSurvey(f0, stype) } })
+        .then(function (j) { thanksSheet(stype === 'small' ? '完成小船探索問卷' : '完成大船探索問卷', j.thanks || '謝謝你願意讓我們更認識你。'); return loadMe(); })
+        .catch(function (err) { sbtn.disabled = false; sbtn.textContent = '送出問卷'; alert(err.message); });
       return;
     }
     if (f0.id === 'seriesForm') {

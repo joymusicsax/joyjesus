@@ -1,6 +1,6 @@
 // POST /api/complete — 船員按「我要挑戰」。不會直接算完成，要等船長（或督導）確認。
 // body: { questId }
-import { DB, notion, queryAll, createPage, P, W, id, handle, json, verifyLine, findMember, readJson, nowTW, HttpError } from '../../lib/notion.js';
+import { DB, notion, queryAll, createPage, P, W, id, handle, json, verifyLine, findMember, readJson, nowTW, HttpError, questLocked } from '../../lib/notion.js';
 
 export const onRequestPost = handle(async ({ env, request }) => {
   const user = await verifyLine(env, request);
@@ -12,6 +12,9 @@ export const onRequestPost = handle(async ({ env, request }) => {
 
   const q = await notion(env, 'pages/' + questId, null, 'GET');
   if (!P.check(q, '啟用')) throw new HttpError(403, '這個任務目前沒有開放');
+  if (questLocked(m, q)) throw new HttpError(403, '這是大船任務，登上大船後就會解鎖');
+  const chk = P.select(q, '檢核方式');
+  if (chk && !['船長確認', '舉手參加'].includes(chk)) throw new HttpError(400, '這個任務送出後系統會自動完成，不需要按我要挑戰');
 
   // 已經有待確認或已確認的紀錄就不重複回報（被退回的可以再回報）
   const prev = await queryAll(env, DB.logs, {
@@ -27,7 +30,7 @@ export const onRequestPost = handle(async ({ env, request }) => {
     '成員': W.rel([id(m)]),
     '任務': W.rel([id(q)]),
     '完成日期': W.datetime(nowTW()),
-    '紀錄方式': W.select('船員回報'),
+    '紀錄方式': W.select(chk === '舉手參加' ? '舉手參加' : '船員回報'),
     '確認狀態': W.select('待確認'),
   });
   return json({ ok: true, pending: true });
