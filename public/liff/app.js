@@ -457,6 +457,7 @@
     if (!m) return '<div class="card"><p class="h2">登上小船之後就能使用船員甲板</p><p class="small" style="margin:6px 0 12px">在這裡可以彼此代禱、提出問題，也可以匿名。</p><button class="btn" data-act="quiz">找到我的小船</button></div>';
     var lead = m.isCaptain || m.isSupervisor;
     if (m.isSupervisor && S.deckMode === 'admin') return viewAdmin();
+    if (m.isSupervisor && S.deckMode === 'videos') return viewVideos();
     if (lead && S.deckMode !== 'board') return viewCaptain();
     return viewBoard(lead);
   }
@@ -477,10 +478,56 @@
     h += crew.length ? crew.map(function (c) { return crewRow(c, false); }).join('') : '<p class="empty">還沒有船員登船。</p>';
     if (S.me.member.isSupervisor) h += '<button class="btn block" style="background:#8A3B6A" data-act="rolemap">🎭 角色地圖（大船問卷）</button>';
     if (S.me.member.isSupervisor) h += '<button class="btn block" style="background:var(--navy)" data-act="deckmode" data-k="admin">🎨 團契系列管理（主視覺・聚會日期）</button>';
+    if (S.me.member.isSupervisor) h += '<button class="btn block" style="background:var(--navy)" data-act="deckmode" data-k="videos">🎬 影片管理（官網影片回顧）</button>';
     h += '<button class="btn ghost block" data-act="deckmode" data-k="board">看代禱、提問與船員介紹</button>';
     h += '<p class="tiny" style="background:#F6EEE2;border-radius:12px;padding:12px;line-height:1.7">你只看得到自己船上的船員。新船員會先進入口群組，請邀請他加入你的小船群組。確認任務時會自動更新「最後互動日」。</p>';
     return h;
   }
+  // ----- 影片管理（督導）：官網 /videos 的影片清單 -----
+  function loadVids() {
+    if (S.vidsLoading) return;
+    S.vidsLoading = true;
+    api('/api/videos/admin').then(function (j) { S.vids = j.videos; S.vidsLoading = false; render(); })
+      .catch(function (e) { S.vidsLoading = false; S.vids = []; alert(e.message); render(); });
+  }
+  function vidRowKey(v) { return v.star ? '★' : v.date ? v.date.slice(0, 7) : '-'; }
+  function vidItem(v, i, n) {
+    var dim = v.show ? '' : 'opacity:.5;';
+    return '<div class="row" style="' + dim + 'flex-direction:column;align-items:stretch;gap:8px" data-vid="' + v.id + '">' +
+      '<div style="display:flex;gap:10px;align-items:flex-start"><img alt="" src="https://i.ytimg.com/vi/' + esc(v.vid) + '/mqdefault.jpg" style="width:96px;aspect-ratio:16/9;object-fit:cover;border-radius:8px;background:#0b1626;flex:none">' +
+      '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"><input data-vf="title" value="' + esc(v.title) + '" maxlength="200" aria-label="標題" style="width:100%;font-weight:700"><input data-vf="date" type="date" value="' + esc(v.date || '') + '" aria-label="日期" style="width:100%"></div></div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+      '<button class="chip" data-act="vid-move" data-k="' + v.id + '" data-d="-1"' + (i === 0 ? ' disabled' : '') + ' aria-label="往前">↑ 往前</button>' +
+      '<button class="chip" data-act="vid-move" data-k="' + v.id + '" data-d="1"' + (i === n - 1 ? ' disabled' : '') + ' aria-label="往後">↓ 往後</button>' +
+      '<button class="chip" data-act="vid-star" data-k="' + v.id + '" aria-pressed="' + v.star + '">' + (v.star ? '★ 星號' : '☆ 星號') + '</button>' +
+      '<button class="chip" data-act="vid-show" data-k="' + v.id + '" aria-pressed="' + !v.show + '">' + (v.show ? '隱藏' : '已隱藏・顯示') + '</button>' +
+      '<button class="chip" data-act="vid-del" data-k="' + v.id + '" style="color:#B3261E">移除</button></div></div>';
+  }
+  function viewVideos() {
+    var h = '<button class="btn ghost" style="align-self:flex-start" data-act="deckmode" data-k="captain">← 回甲板</button>';
+    h += '<div><p class="kicker" style="color:var(--brick)">VIDEO ADMIN</p><p class="h1" style="margin-top:3px">影片管理</p><p class="small" style="margin-top:4px">官網 joyjesus.com/videos 的影片。有「星號」的會排在最上面一列；其餘依「日期」的月份自動分組。用「往前／往後」調整同一列的順序。</p></div>';
+    if (!S.vids) { loadVids(); return h + spinner(); }
+    h += '<form id="vidAdd" class="card" style="display:flex;flex-direction:column;gap:10px"><p style="font-size:14px;font-weight:700">新增影片</p>' +
+      '<label class="field">YouTube 網址（一行一個，可一次貼很多）<textarea name="urls" rows="4" placeholder="https://www.youtube.com/watch?v=…"></textarea></label>' +
+      '<label class="field">這批影片的日期（選填，之後可以個別改）<input name="date" type="date"></label>' +
+      '<button class="btn block" type="submit">新增</button><p class="tiny">標題會自動抓 YouTube 的影片標題，抓不到時請在下方補上。</p></form>';
+    if (!S.vids.length) return h + '<p class="empty">還沒有影片。</p>';
+    var groups = [], idx = {};
+    S.vids.forEach(function (v) { var k = vidRowKey(v); if (!(k in idx)) { idx[k] = groups.length; groups.push({ k: k, list: [] }); } groups[idx[k]].list.push(v); });
+    groups.sort(function (a, b) { return a.k === '★' ? -1 : b.k === '★' ? 1 : a.k === '-' ? 1 : b.k === '-' ? -1 : b.k.localeCompare(a.k); });
+    groups.forEach(function (g) {
+      var t = g.k === '★' ? '★ 第一列：福音週與同志相關' : g.k === '-' ? '未標日期' : g.k.replace(/^(\d{4})-0?(\d+)$/, '$1 年 $2 月');
+      h += '<p style="font-size:13px;font-weight:700;color:' + (g.k === '★' ? 'var(--brick)' : 'var(--ink2)') + ';margin-top:6px">' + t + '（' + g.list.length + '）</p>';
+      h += g.list.map(function (v, i) { return vidItem(v, i, g.list.length); }).join('');
+    });
+    return h;
+  }
+  function vidFind(id) { return (S.vids || []).filter(function (v) { return v.id === id; })[0]; }
+  function vidPost(body, after) {
+    return api('/api/videos/admin', { method: 'POST', body: body }).then(function (j) { if (after) after(j); return j; })
+      .catch(function (e) { alert(e.message); S.vids = null; render(); });
+  }
+
   // ----- 團契系列管理（督導） -----
   function viewAdmin() {
     var h = '<button class="btn ghost" style="align-self:flex-start" data-act="deckmode" data-k="captain">← 回甲板</button>';
@@ -832,9 +879,13 @@
     }
     else if (act === 'cal-undo') { var ud = store('joy-cal') || {}; delete ud[el.dataset.id]; store('joy-cal', ud); closeSheet(); render(); }
     else if (act === 'kind') { S.boardKind = k; S.openThread = null; render(); }
+    else if (act === 'vid-move') { vidPost({ action: 'move', id: k, dir: +el.dataset.d }, function () { S.vids = null; render(); }); }
+    else if (act === 'vid-star') { var vs1 = vidFind(k); if (vs1) { vs1.star = !vs1.star; render(); vidPost({ action: 'update', id: k, star: vs1.star }, function () { S.vids = null; render(); }); } }
+    else if (act === 'vid-show') { var vs2 = vidFind(k); if (vs2) { vs2.show = !vs2.show; render(); vidPost({ action: 'update', id: k, show: vs2.show }); } }
+    else if (act === 'vid-del') { var vs3 = vidFind(k); if (vs3 && confirm('把「' + vs3.title + '」從官網清單移除？（只是移除，不會刪 YouTube 影片）')) vidPost({ action: 'remove', id: k }, function () { S.vids = null; render(); }); }
     else if (act === 'deckmode') {
       e.preventDefault(); S.deckMode = k;
-      if (k === 'admin' && S.view !== 'deck') { history.pushState(null, '', '/liff/deck'); route(); } else render();
+      if ((k === 'admin' || k === 'videos') && S.view !== 'deck') { history.pushState(null, '', '/liff/deck'); route(); } else render();
       window.scrollTo(0, 0);
     }
     else if (act === 'admin-pick') { S.editing = S.admin.filter(function (x) { return x.id === k; })[0]; render(); }
@@ -887,6 +938,17 @@
     }
   });
   document.addEventListener('change', function (e) {
+    var vf = e.target.dataset && e.target.dataset.vf;
+    if (vf) {
+      var vrow = e.target.closest('[data-vid]'), vv = vrow && vidFind(vrow.dataset.vid);
+      if (vv) {
+        var body = { action: 'update', id: vv.id };
+        if (vf === 'title') { if (!e.target.value.trim()) { e.target.value = vv.title; return; } vv.title = body.title = e.target.value.trim(); }
+        else { vv.date = e.target.value || null; body.date = vv.date; }
+        vidPost(body, vf === 'date' ? function () { S.vids = null; render(); } : null);
+      }
+      return;
+    }
     if (e.target.name === 'visual' && e.target.files && e.target.files[0]) {
       var pv = document.getElementById('visualPreview');
       if (pv) pv.innerHTML = '<img src="' + URL.createObjectURL(e.target.files[0]) + '" alt="" style="width:100%;height:100%;object-fit:cover">';
@@ -956,6 +1018,14 @@
       api('/api/survey', { method: 'POST', body: { type: stype, answers: collectSurvey(f0, stype) } })
         .then(function (j) { thanksSheet(stype === 'small' ? '完成小船探索問卷' : '完成大船探索問卷', j.thanks || '謝謝你願意讓我們更認識你。'); return loadMe(); })
         .catch(function (err) { sbtn.disabled = false; sbtn.textContent = '送出問卷'; alert(err.message); });
+      return;
+    }
+    if (f0.id === 'vidAdd') {
+      e.preventDefault();
+      var vb = f0.querySelector('button[type=submit]'); vb.disabled = true; vb.textContent = '新增中…（會一部一部處理，請稍候）';
+      api('/api/videos/admin', { method: 'POST', body: { action: 'add', urls: f0.elements.urls.value, date: f0.elements.date.value } })
+        .then(function (j) { alert('新增 ' + j.added + ' 部' + (j.skipped ? '，略過已存在的 ' + j.skipped + ' 部' : '')); S.vids = null; render(); })
+        .catch(function (err) { vb.disabled = false; vb.textContent = '新增'; alert(err.message); });
       return;
     }
     if (f0.id === 'seriesForm') {

@@ -83,11 +83,12 @@ dialog .bar button{border:0;background:var(--gold);color:var(--navy);font-weight
   }
   function fallback() {
     $('main').innerHTML = '<div class="fallback"><div class="ratio"><iframe src="https://www.youtube-nocookie.com/embed/videoseries?list=' + PLAYLIST + '" title="揪喜樂團契 影片" allow="accelerometer; encrypted-media; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>' +
-      '<p style="margin-top:14px">分季整理中。目前可先從上方播放清單依序觀看，<br>或到 <a href="https://www.youtube.com/playlist?list=' + PLAYLIST + '" target="_blank" rel="noopener">YouTube 開啟完整清單</a>。</p></div>';
+      '<p style="margin-top:14px">影片整理中。目前可先從上方播放清單依序觀看，<br>或到 <a href="https://www.youtube.com/playlist?list=' + PLAYLIST + '" target="_blank" rel="noopener">YouTube 開啟完整清單</a>。</p></div>';
   }
 
-  fetch('videos.json', { cache: 'no-cache' }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (d) {
-    var h = row(d.featured, true) + (d.seasons || []).map(function (s) { return row(s, false); }).join('');
+  fetch('/api/public/videos').then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (d) {
+    var h = row({ title: '福音週與同志相關主題', desc: '福音週，以及與同志議題直接相關的分享與講座', videos: d.featured }, true) +
+      (d.months || []).map(function (m) { return row({ title: m.title, videos: m.videos }, false); }).join('');
     if (!h) return fallback();
     $('main').innerHTML = h + '<p class="foot">完整清單在 <a href="https://www.youtube.com/playlist?list=' + PLAYLIST + '" target="_blank" rel="noopener">YouTube 播放清單</a></p>';
   }).catch(fallback);
