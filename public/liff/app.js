@@ -109,7 +109,7 @@
     var m = S.me && S.me.member;
     var name = m ? m.name : (S.me ? S.me.user.name : '旅人');
     var h = '<div><p class="h1">嗨，' + esc(name) + '</p><p class="tiny" style="margin-top:2px">今天也歡迎靠岸。</p></div>';
-    h += blessCard() + mapCard();
+    h += mapCard();
     if (!S.loggedIn) h += '<div class="card"><p class="h2">用 LINE 登入，開始你的航程</p><p class="small" style="margin:6px 0 10px">航海日誌、聚會消息、船員甲板需要登入 LINE 才看得到。我們只會讀取你的 LINE 名稱。</p><button class="btn line" data-act="login">用 LINE 登入</button></div>';
     else if (!S.me && S.meError) h += authErrCard();
     else if (!S.me) h += spinner();
@@ -121,28 +121,47 @@
   function authErrCard() {
     return '<div class="card" style="display:flex;flex-direction:column;gap:8px;border-color:#F0C9B8;background:#FDF1EA"><p class="h2">讀取你的資料時出了點問題</p><p class="small">' + esc(S.meError) + '</p><button class="btn line" style="align-self:flex-start" data-act="relogin">重新登入</button></div>';
   }
-  function blessCard() {
-    var list = (S.content && S.content.blessings) || [];
-    var b = S.bless >= 0 ? list[S.bless] : null;
-    return '<div class="card" style="display:flex;flex-direction:column;gap:8px"><p class="kicker" style="color:var(--brown)">BLESSING BOTTLE</p>' +
-      (b ? '<p style="font-size:15px;line-height:1.75;font-weight:700">' + esc(b.text) + '</p><p class="tiny">' + esc(b.ref) + '</p>'
-         : '<p class="small">今天需要一句話嗎？從漂流瓶裡抽一張祝福。</p>') +
-      '<button class="btn" style="background:var(--brown);align-self:flex-start" data-act="bless"' + (list.length ? '' : ' disabled') + '>' + (b ? '再抽一張' : '抽一張祝福') + '</button></div>';
-  }
   function mapCard() {
+    var wave = function (x, y, w) { return '<path d="M' + x + ' ' + y + 'q' + (w / 4) + ' -12 ' + (w / 2) + ' 0t' + (w / 2) + ' 0" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".35"/>'; };
     return '<div class="map"><svg viewBox="0 0 1100 700" aria-hidden="true">' +
-      '<rect width="1100" height="700" fill="#5FB3C4"/>' +
-      '<path d="M330 300C340 210 470 170 580 190C700 205 790 240 780 320C772 390 700 430 600 430C470 440 330 400 330 300Z" fill="#F1E2C2"/>' +
-      '<path d="M380 290C390 230 480 210 560 222C650 232 720 262 712 315C700 360 640 380 560 380C470 384 375 350 380 290Z" fill="#A9CF8F"/>' +
-      '<rect x="515" y="266" width="60" height="38" fill="#FFF6E6"/><path d="M507 269L545 240L583 269Z" fill="#D9673F"/>' +
-      '<g transform="translate(640 380)"><g fill="none" stroke-width="7" opacity=".55"><path d="M10 110A110 110 0 0 1 230 110" stroke="#E5534B"/><path d="M20 110A100 100 0 0 1 220 110" stroke="#F2C14E"/><path d="M30 110A90 90 0 0 1 210 110" stroke="#5BAE6A"/><path d="M40 110A80 80 0 0 1 200 110" stroke="#4A7FC1"/></g><path d="M55 70L120 38L185 70Z" fill="#6B3F22"/><rect x="65" y="68" width="110" height="42" fill="#C98B4E"/><path d="M8 108L232 108L208 146Q120 160 32 146Z" fill="#8A5A34"/></g>' +
-      '<g transform="translate(150 560)"><path d="M0 0L72 0L60 20L12 20Z" fill="#C98B4E"/><path d="M39 -40L39 -4L66 -4Z" fill="#fff"/></g>' +
-      '<circle cx="300" cy="610" r="14" fill="none" stroke="#fff" stroke-width="9"/>' +
-      '<g transform="translate(860 230) rotate(-28)"><path d="M0 26L110 26L142 12L128 36L8 40Z" fill="#fff"/><path d="M50 26L68 12L92 12L92 26Z" fill="#7FB6C9"/></g>' +
+      '<defs><linearGradient id="sea" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#3F9DB5"/><stop offset="1" stop-color="#7CCBD6"/></linearGradient></defs>' +
+      '<rect width="1100" height="700" fill="url(#sea)"/>' +
+      wave(60, 120, 130) + wave(300, 70, 110) + wave(520, 140, 130) + wave(760, 60, 110) + wave(900, 360, 130) + wave(120, 330, 110) + wave(700, 600, 130) + wave(380, 640, 110) + wave(950, 560, 90) +
+      // 航線：小船 → 方舟 → 快艇
+      '<path d="M215 520C330 575 430 500 545 455S650 385 735 330" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-dasharray="2 22" opacity=".95"/>' +
+      '<path d="M752 318l-30 -2l18 -22z" fill="#fff"/>' +
+      // 小船
+      '<g transform="translate(95 462) scale(2.3)"><path d="M0 0L72 0L60 20L12 20Z" fill="#C98B4E"/><path d="M36 -44L36 -4L66 -4Z" fill="#fff"/><rect x="34" y="-50" width="3" height="48" fill="#8A5A34"/></g>' +
+      // 方舟
+      '<g transform="translate(425 300)"><g fill="none" stroke-width="7" opacity=".6"><path d="M10 110A110 110 0 0 1 230 110" stroke="#E5534B"/><path d="M20 110A100 100 0 0 1 220 110" stroke="#F2C14E"/><path d="M30 110A90 90 0 0 1 210 110" stroke="#5BAE6A"/><path d="M40 110A80 80 0 0 1 200 110" stroke="#4A7FC1"/></g><path d="M55 70L120 38L185 70Z" fill="#6B3F22"/><rect x="65" y="68" width="110" height="42" fill="#C98B4E"/><path d="M8 108L232 108L208 146Q120 160 32 146Z" fill="#8A5A34"/></g>' +
+      // 快艇（附浪花）
+      '<path d="M880 215C840 235 805 255 770 280" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" opacity=".55"/><path d="M905 245C870 262 840 280 810 300" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".35"/>' +
+      '<g transform="translate(770 250) rotate(-28) scale(1.3)"><path d="M0 26L110 26L142 12L128 36L8 40Z" fill="#fff"/><path d="M50 26L68 12L92 12L92 26Z" fill="#7FB6C9"/></g>' +
       '</svg>' +
-      '<button class="pin" style="left:69%;top:84%" data-act="sheet" data-k="ark"><b style="background:var(--brown)">01</b>方舟</button>' +
-      '<button class="pin" style="left:22%;top:72%" data-act="sheet" data-k="care"><b style="background:var(--brick)">02</b>小船</button>' +
-      '<button class="pin" style="left:86%;top:22%" data-act="sheet" data-k="sail"><b style="background:var(--teal)">03</b>快艇</button></div>';
+      '<button class="pin" style="left:17%;top:91%" data-act="sheet" data-k="care"><b style="background:var(--brick)">01</b>小船</button>' +
+      '<button class="pin" style="left:50%;top:78%" data-act="sheet" data-k="ark"><b style="background:var(--brown)">02</b>方舟</button>' +
+      '<button class="pin" style="left:80%;top:56%" data-act="sheet" data-k="sail"><b style="background:var(--teal)">03</b>快艇</button></div>';
+  }
+  // ----- 團契回播：上一次聚會的影片（資料來自官網影片頁的 Notion 清單） -----
+  function replayCard() {
+    if (S.replay === undefined) {
+      S.replay = null;
+      fetch('/api/public/videos').then(function (r) { return r.ok ? r.json() : {}; })
+        .then(function (j) { S.replay = j.latest || false; if (S.view === 'log') render(); })
+        .catch(function () { S.replay = false; });
+    }
+    var v = S.replay;
+    if (v === null) return '';                      // 還在載入
+    if (!v) return '<div class="card" style="display:flex;align-items:center;gap:12px"><span style="flex:1"><span class="kicker" style="color:var(--brick)">REPLAY・團契回播</span><span class="small" style="display:block;margin-top:2px">錯過的聚會，可以到影片頁補看。</span></span><a class="btn" href="/videos" style="white-space:nowrap">更多影片</a></div>';
+    var d = v.date ? v.date.replace(/^(\d{4})-0?(\d+)-0?(\d+)$/, '$1/$2/$3') : '';
+    return '<div class="card" style="display:flex;flex-direction:column;gap:10px"><div style="display:flex;justify-content:space-between;align-items:baseline"><p class="kicker" style="color:var(--brick)">REPLAY・團契回播</p>' + (d ? '<span class="tiny">' + esc(d) + '</span>' : '') + '</div>' +
+      '<button data-act="replay" style="position:relative;display:block;width:100%;aspect-ratio:16/9;border:0;border-radius:12px;overflow:hidden;padding:0;background:#0b1626 url(https://i.ytimg.com/vi/' + esc(v.id) + '/hqdefault.jpg) center/cover no-repeat" aria-label="播放：' + esc(v.title) + '"><span style="position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(22,35,59,.75)"></span><svg viewBox="0 0 24 24" aria-hidden="true" style="position:absolute;left:50%;top:50%;width:28px;height:28px;margin:-14px 0 0 -12px"><path d="M9 6.5v11l9-5.5z" fill="#fff"/></svg></button>' +
+      '<p style="font-size:15px;font-weight:700;line-height:1.5">' + esc(v.title) + '</p>' +
+      '<a class="btn ghost block" href="/videos">更多影片 →</a></div>';
+  }
+  function replayPlayer() {
+    var v = S.replay; if (!v) return;
+    openSheet(head('REPLAY', 'var(--brick)', v.title) + '<div style="position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#000"><iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(v.id) + '?autoplay=1&rel=0&playsinline=1" title="' + esc(v.title) + '" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div><a class="btn ghost block" href="/videos">更多影片 →</a>');
   }
   function mainQuest() {
     var q = (S.me && S.me.quests) || [];
@@ -192,7 +211,7 @@
     h += surveyNudge(m);
     h += introCard(m);
     var crewCircle = m.circle === '小船船員';
-    if (!crewCircle) h += seriesBlock('MAIN QUEST・團契主題') + zoomBtn();
+    if (!crewCircle) h += seriesBlock('MAIN QUEST・團契主題') + zoomBtn() + replayCard();
     var mq = mainQuest(), firstOpen = true;
     if (crewCircle || mq.list.length) h += '<div class="card" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;justify-content:space-between;align-items:baseline"><div><p class="kicker" style="color:var(--brick)">MAIN QUEST・主線</p><p class="h2" style="margin-top:2px">' + esc(mq.title) + '</p></div><p style="font-family:Fraunces,serif;font-style:italic;font-size:22px;color:var(--brick)">' + mq.done + ' / ' + mq.list.length + '</p></div>';
     h += '<div class="bar"><i style="width:' + (mq.list.length ? Math.round(mq.done / mq.list.length * 100) : 0) + '%"></i></div><div class="steps">';
@@ -209,13 +228,11 @@
       if (!mq.list.length) h += '<p class="tiny">這一季的任務還沒公布。</p>';
       h += '</div>' + (crewCircle ? '<p class="tiny">沒有截止日，準備好再出發。按「我要挑戰」，船長確認後才會打勾。</p>' : '<p class="tiny">按「我要挑戰」，由船長或督導確認。</p>') + '</div>';
     }
-    if (crewCircle) h += seriesBlock('SIDE QUEST・團契主題') + zoomBtn();
+    if (crewCircle) h += seriesBlock('SIDE QUEST・團契主題') + zoomBtn() + replayCard();
     h += growthBoard(m);
     var side = S.me.quests.filter(function (x) { return x.type === '支線'; }).sort(function (a, b) { return a.order - b.order; });
-    var drew = store('joy-bless-day') === todayKey();
-    {
+    if (side.length) {
       h += '<div class="card" style="display:flex;flex-direction:column;gap:10px"><p class="kicker" style="color:var(--brown)">SIDE QUEST・支線</p>';
-      h += '<a class="row" href="/liff/" data-nav style="text-decoration:none;color:inherit"><span style="flex:1;font-size:14px;font-weight:700">從漂流瓶抽一張祝福</span><span class="tiny" style="' + (drew ? 'color:#2F7A44;font-weight:700' : '') + '">' + (drew ? '今天已抽' : '每天一張') + '</span></a>';
       side.forEach(function (q) {
         var right = !q.done ? reportBtn(q, true)
           : q.badge && q.badge !== '無' ? '<span style="display:flex;gap:3px">' + [0, 1, 2].map(function (i) { return '<span class="dot" style="width:7px;height:7px;background:' + (i < q.done ? 'var(--brown)' : '#E6DECF') + '"></span>'; }).join('') + '</span>'
@@ -807,8 +824,8 @@
   function head(kicker, color, title) { return '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div><p class="kicker" style="color:' + color + '">' + kicker + '</p><p class="h1" style="margin-top:3px">' + esc(title) + '</p></div><button class="x" data-act="close" aria-label="關閉">×</button></div>'; }
   function sheetFor(k) {
     var c = S.content || { boats: [], teams: [] };
-    if (k === 'ark') return openSheet(head('ENTRY 01・方舟', 'var(--brown)', '認識揪喜樂') + '<p class="small">在線上相遇，在生活中同行，在世界中成為祝福。</p><p style="background:#F6EEE2;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7">建立性別友善的福音動態團體，向酷兒分享好消息。</p><a class="btn block" style="background:var(--brown)" href="' + esc(CFG.instagram) + '" target="_blank" rel="noopener">追蹤 Instagram</a><a class="btn ghost block" href="/" target="_blank" rel="noopener">看揪喜樂官網</a>');
-    if (k === 'care') return openSheet(head('ENTRY 02・小船', 'var(--brick)', '找到安全的地方') + '<p class="small">給還在探索信仰或身分、受過傷，或只是好奇的你。</p><p style="background:#F6EEE2;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7">陪伴不是拯救。你可以帶著問號上船，照自己的節奏前進。</p>' + c.boats.map(function (b) { return '<div class="row"><span class="dot" style="background:' + esc(b.color) + '"></span><span style="font-size:14px;font-weight:700;flex:1">' + esc(b.name) + '</span><span class="tiny">' + esc(b.tagline) + '</span></div>'; }).join('') + ((S.me && S.me.member) ? '' : '<button class="btn block" data-act="quiz">做 3 題小測驗，找到你的船</button>'));
+    if (k === 'ark') return openSheet(head('ENTRY 02・方舟', 'var(--brown)', '認識揪喜樂') + '<p class="small">在線上相遇，在生活中同行，在世界中成為祝福。</p><p style="background:#F6EEE2;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7">建立性別友善的福音動態團體，向酷兒分享好消息。</p><a class="btn block" style="background:var(--brown)" href="' + esc(CFG.instagram) + '" target="_blank" rel="noopener">追蹤 Instagram</a><a class="btn ghost block" href="/" target="_blank" rel="noopener">看揪喜樂官網</a>');
+    if (k === 'care') return openSheet(head('ENTRY 01・小船', 'var(--brick)', '找到安全的地方') + '<p class="small">給還在探索信仰或身分、受過傷，或只是好奇的你。</p><p style="background:#F6EEE2;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7">陪伴不是拯救。你可以帶著問號上船，照自己的節奏前進。</p>' + c.boats.map(function (b) { return '<div class="row"><span class="dot" style="background:' + esc(b.color) + '"></span><span style="font-size:14px;font-weight:700;flex:1">' + esc(b.name) + '</span><span class="tiny">' + esc(b.tagline) + '</span></div>'; }).join('') + ((S.me && S.me.member) ? '' : '<button class="btn block" data-act="quiz">做 3 題小測驗，找到你的船</button>'));
     if (k === 'sail') return openSheet(head('ENTRY 03・快艇', 'var(--teal)', '一起出航') + '<p class="small">給想成為同工、執行外展專案的你。有分工表、有懶人包，不會讓你一個人扛。</p>' + c.teams.map(function (t) { return '<div class="row"><span class="dot" style="background:var(--teal)"></span><span style="flex:1"><span style="display:block;font-size:14px;font-weight:700">' + esc(t.name) + '</span><span class="tiny">' + esc(t.desc) + '</span></span><span class="tiny">' + esc(t.commitment.join('・')) + '</span></div>'; }).join('') + '<a class="btn block" style="background:var(--teal)" href="' + esc(CFG.lineOA) + '" target="_blank" rel="noopener">我想加入，私訊 LINE@</a>');
   }
   var QS = [
@@ -836,7 +853,6 @@
     var act = el.dataset.act, k = el.dataset.k;
     if (act === 'login') login();
     else if (act === 'relogin') relogin();
-    else if (act === 'bless') { store('joy-bless-day', todayKey()); var n = ((S.content && S.content.blessings) || []).length; if (n) { S.bless = n === 1 ? 0 : (S.bless < 0 ? Math.floor(Math.random() * n) : (S.bless + 1 + Math.floor(Math.random() * (n - 1))) % n); render(); } }
     else if (act === 'sheet') sheetFor(k);
     else if (act === 'close') closeSheet();
     else if (act === 'quiz') { quizAns = []; quizStep(); }
@@ -875,6 +891,7 @@
     }
     else if (act === 'cal-undo') { var ud = store('joy-cal') || {}; delete ud[el.dataset.id]; store('joy-cal', ud); closeSheet(); render(); }
     else if (act === 'kind') { S.boardKind = k; S.openThread = null; render(); }
+    else if (act === 'replay') { replayPlayer(); }
     else if (act === 'vid-move') { vidPost({ action: 'move', id: k, dir: +el.dataset.d }, function () { S.vids = null; render(); }); }
     else if (act === 'vid-star') { var vs1 = vidFind(k); if (vs1) { vs1.star = !vs1.star; render(); vidPost({ action: 'update', id: k, star: vs1.star }, function () { S.vids = null; render(); }); } }
     else if (act === 'vid-show') { var vs2 = vidFind(k); if (vs2) { vs2.show = !vs2.show; render(); vidPost({ action: 'update', id: k, show: vs2.show }); } }

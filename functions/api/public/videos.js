@@ -28,5 +28,7 @@ export const onRequestGet = handle(async ({ env, waitUntil }) => {
       title: key === '未標日期' ? '其他' : key.replace(/^(\d{4})-0?(\d+)$/, '$1 年 $2 月'),
       videos,
     }));
-  return json({ featured, months }, 200, 120);
+  // 團契回播：日期最新的一部（同一天取排序在前的）
+  const newest = vs.filter((v) => v.date).sort((a, b) => b.date.localeCompare(a.date))[0];
+  return json({ featured, months, latest: newest ? pick(newest) : null }, 200, 120);
 });
