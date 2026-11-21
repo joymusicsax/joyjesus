@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>團契留言板｜揪喜樂團契</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2306121F'/%3E%3Cpath d='M12 38h40l-6 10H18z' fill='%23B07A47'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#16233B;--blue:#2B5A8F;--gold:#F2C14E;--brick:#B8503A;--ink:#4A5568;--line:#DCE4EC;--soft:#F2F5F9;--muted:#6B7380}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--soft);color:var(--navy);font-family:'Noto Sans TC',system-ui,sans-serif;-webkit-text-size-adjust:100%}
+a{color:var(--blue)}
+button{font:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+header.hero{background:var(--navy);color:#F5EDE1;padding:34px 20px 40px;text-align:center}
+.hero .k{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;color:var(--gold);margin:0 0 6px}
+.hero h1{font-family:'Noto Serif TC',serif;font-size:30px;margin:0 0 8px}
+.hero p{margin:0;color:#C9D3E0;font-size:15px;line-height:1.7}
+.hero a.back{display:inline-block;margin-top:14px;font-size:13px;color:var(--gold);text-decoration:none;border-bottom:1px solid rgba(242,193,78,.5)}
+.wrap{max-width:1000px;margin:-20px auto 60px;padding:0 16px;display:flex;flex-direction:column;gap:18px}
+@media(min-width:860px){.wrap{flex-direction:row;align-items:flex-start}.form-card{flex:0 0 330px;position:sticky;top:16px}.board-card{flex:1;min-width:0}}
+.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px}
+.card h2{font-family:'Noto Serif TC',serif;font-size:19px;margin:0 0 12px}
+label{display:block;font-size:13px;font-weight:700;color:var(--ink);margin:12px 0 6px}
+input[type=text],textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font:inherit;font-size:15px;color:var(--navy);background:#fff}
+textarea{min-height:130px;resize:vertical;line-height:1.7}
+.cat{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cat button{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:10px 6px;font-weight:700;font-size:14px;color:var(--ink)}
+.cat button[aria-pressed=true]{border-color:var(--blue);background:#EAF1F9;color:var(--blue)}
+.anon{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px}
+.anon input{width:19px;height:19px;accent-color:var(--brick)}
+.send{margin-top:16px;width:100%;border:0;border-radius:999px;background:var(--brick);color:#fff;font-weight:900;font-size:16px;padding:13px}
+.send:disabled{opacity:.55}
+.msg{margin-top:10px;font-size:13px;min-height:18px}
+.msg.ok{color:#2F7A44}.msg.err{color:#B3261E}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--soft);border-radius:999px;padding:4px;margin-bottom:14px}
+.tabs button{border:0;border-radius:999px;padding:10px;font-weight:700;font-size:14px;background:transparent;color:var(--muted)}
+.tabs button[aria-selected=true]{background:#fff;color:var(--navy);box-shadow:0 1px 4px rgba(22,35,59,.12)}
+.post{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;background:#fff}
+.who{display:flex;align-items:center;gap:10px}
+.av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;background:#DCE6F2;color:var(--navy);flex:none}
+.av.anon{background:#F6EEE2;color:#8A5A34}
+.who b{font-size:14px}.who small{display:block;color:var(--muted);font-size:12px}
+.text{font-size:15px;line-height:1.8;margin:10px 0;white-space:pre-wrap;word-break:break-word}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #E5C9BC;background:#fff;color:var(--brick);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:700}
+.pill.on{background:var(--brick);color:#fff;border-color:var(--brick)}
+.pill.plain{border-color:var(--line);color:var(--ink)}
+.thread{margin-top:12px;border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:10px}
+.reply{display:flex;gap:8px}.reply .av{width:28px;height:28px;font-size:12px}
+.reply .bub{flex:1;background:var(--soft);border-radius:12px;padding:8px 11px;font-size:14px;line-height:1.7;word-break:break-word}
+.reply .bub b{font-size:12px}
+.rform{display:flex;flex-direction:column;gap:8px}
+.rform .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.rform input[type=text]{flex:1;min-width:110px;border-radius:999px;padding:8px 12px;font-size:14px}
+.rform textarea{min-height:64px;font-size:14px}
+.rform button.go{border:0;background:var(--navy);color:#fff;font-weight:700;border-radius:999px;padding:8px 16px;font-size:13px}
+.more{display:block;margin:6px auto 0;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:10px 22px;font-weight:700}
+.empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:14px;line-height:1.8}
+.spin{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--blue);border-radius:50%;margin:30px auto;animation:r 1s linear infinite}
+@keyframes r{to{transform:rotate(360deg)}}
+.banner{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;z-index:9;max-width:92vw}
+.note{font-size:12.5px;color:var(--muted);line-height:1.7;margin-top:12px}
+</style>
+</head>
+<body>
+<header class="hero">
+  <p class="k">PRAYER &amp; QUESTIONS</p>
+  <h1>🕊️ 團契留言板</h1>
+  <p>有想禱告的事、有想問的問題，都歡迎留下來。<br>可以匿名，也歡迎彼此回應、為對方禱告。</p>
+  <a class="back" href="/">← 回揪喜樂團契首頁</a>
+</header>
+
+<div class="wrap">
+  <section class="card form-card" aria-labelledby="fh">
+    <h2 id="fh">寫留言</h2>
+    <form id="f" autocomplete="off">
+      <label for="fn">稱呼</label>
+      <input id="fn" type="text" maxlength="30" placeholder="怎麼稱呼你？">
+      <label>選擇類別</label>
+      <div class="cat" role="group" aria-label="類別">
+        <button type="button" data-cat="prayer" aria-pressed="true">🙏 我要禱告</button>
+        <button type="button" data-cat="question" aria-pressed="false">💬 我要發問</button>
+      </div>
+      <label for="fc">內容</label>
+      <textarea id="fc" maxlength="500" placeholder="想說的話寫在這裡…"></textarea>
+      <div class="anon"><input id="fa" type="checkbox"><label for="fa" style="margin:0;font-weight:500;color:var(--navy)">以匿名方式送出</label></div>
+      <button class="send" id="send" type="submit">送出</button>
+      <div class="msg" id="fm" role="status"></div>
+      <p class="note">這裡的內容，團契的同工會看見。匿名送出時，畫面不會顯示你的稱呼。請不要留下電話、住址等個人聯絡資料。</p>
+    </form>
+  </section>
+
+  <section class="card board-card" aria-label="留言列表">
+    <div class="tabs" role="tablist">
+      <button role="tab" id="t-prayer" data-cat="prayer" aria-selected="true">🙏 我要禱告</button>
+      <button role="tab" id="t-question" data-cat="question" aria-selected="false">💬 我要發問</button>
+    </div>
+    <div id="list"></div>
+    <button class="more" id="more" hidden>查看更多</button>
+  </section>
+</div>
+<div class="banner" id="bn" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+  // 留言板後端：Google Apps Script（資料存在 Notion「團契留言板」）。
+  var API = 'https://script.google.com/macros/s/AKfycbwSxSfGQ2izxs06rcAfpC0uhxfjeSEho9Zumd-ghEJZK1h9c1ahLzHDik14R8YPFP24/exec';
+  var st = { cat: 'prayer', formCat: 'prayer', prayer: { limit: 5, data: null }, question: { limit: 5, data: null }, replies: {}, open: {} };
+  var $ = function (id) { return document.getElementById(id); };
+  var seq = 0;
+
+  function jsonp(action, params, timeout) {
+    return new Promise(function (resolve, reject) {
+      var cb = '__jp' + (++seq) + '_' + Date.now(), s = document.createElement('script'), done = false;
+      var q = 'action=' + encodeURIComponent(action) + '&callback=' + cb;
+      for (var k in (params || {})) q += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+      function clean() { done = true; delete window[cb]; if (s.parentNode) s.parentNode.removeChild(s); clearTimeout(tm); }
+      var tm = setTimeout(function () { if (!done) { clean(); reject(new Error('timeout')); } }, timeout || 20000);
+      window[cb] = function (r) { clean(); if (r && r.error) reject(new Error(r.error)); else resolve(r); };
+      s.onerror = function () { if (!done) { clean(); reject(new Error('network')); } };
+      s.src = API + '?' + q; document.head.appendChild(s);
+    });
+  }
+  // 送出留言／回應：用「簡單請求」的 POST（不會觸發 CORS 預檢），回應看不到，所以送完再重新讀取
+  function postWrite(body) {
+    return fetch(API, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function banner(t) { var b = $('bn'); b.textContent = t; b.hidden = false; clearTimeout(banner.t); banner.t = setTimeout(function () { b.hidden = true; }, 3500); }
+  function fmt(d) { if (!d) return ''; var x = new Date(d); if (isNaN(x)) return ''; return x.getFullYear() + '/' + (x.getMonth() + 1) + '/' + x.getDate(); }
+  function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } }
+
+  function load(cat, keepScroll) {
+    var s = st[cat];
+    return jsonp('list', { category: cat, limit: s.limit }).then(function (r) { s.data = r; s.err = false; if (st.cat === cat) render(); })
+      .catch(function () { s.err = true; if (st.cat === cat) render(); });
+  }
+  function render() {
+    var s = st[st.cat], L = $('list'), hearted = store('joy-board-hearted') || {};
+    if (s.err && !s.data) { L.innerHTML = '<div class="empty">留言板暫時連不上。<br>請稍後重新整理再試一次。</div>'; $('more').hidden = true; return; }
+    if (!s.data) { L.innerHTML = '<div class="spin" role="status" aria-label="載入中"></div>'; $('more').hidden = true; return; }
+    var ms = s.data.messages || [];
+    if (!ms.length) { L.innerHTML = '<div class="empty">目前還沒有留言，來當第一位吧。</div>'; $('more').hidden = true; return; }
+    L.innerHTML = ms.map(function (m) {
+      var anon = m.anonymous || m.displayName === '匿名', nm = anon ? '匿名' : (m.displayName || '旅人'), on = hearted[m.id];
+      var open = st.open[m.id], pray = st.cat === 'prayer';
+      return '<article class="post" data-id="' + esc(m.id) + '"><div class="who"><span class="av' + (anon ? ' anon' : '') + '">' + esc(anon ? '匿' : nm.slice(0, 1)) + '</span><div><b>' + esc(nm) + '</b><small>' + fmt(m.createdAt) + '</small></div></div>' +
+        '<p class="text">' + esc(m.content) + '</p><div class="acts"><button class="pill' + (on ? ' on' : '') + '" data-act="heart" data-id="' + esc(m.id) + '"' + (on ? ' disabled' : '') + '>❤️ ' + (pray ? '為你禱告 ' : '') + (m.hearts || 0) + '</button>' +
+        '<button class="pill plain" data-act="thread" data-id="' + esc(m.id) + '">💬 ' + (open ? '收合回應' : '回應 ' + (m.replyCount || 0)) + '</button></div>' + (open ? threadHtml(m.id, pray) : '') + '</article>';
+    }).join('');
+    $('more').hidden = !(s.data.total > ms.length || ms.length >= s.limit);
+  }
+  function threadHtml(id, pray) {
+    var r = st.replies[id], h = '<div class="thread">';
+    if (!r) h += '<div class="spin" style="margin:8px auto"></div>';
+    else h += r.map(function (x) { var a = x.anonymous || x.displayName === '匿名', n = a ? '匿名' : (x.displayName || '旅人'); return '<div class="reply"><span class="av' + (a ? ' anon' : '') + '">' + esc(a ? '匿' : n.slice(0, 1)) + '</span><div class="bub"><b>' + esc(n) + '</b> <small style="color:#6B7380">' + fmt(x.createdAt) + '</small><br>' + esc(x.content) + '</div></div>'; }).join('');
+    return h + '<form class="rform" data-id="' + esc(id) + '"><textarea name="c" maxlength="300" required placeholder="' + (pray ? '寫下你的祝福或禱告…' : '寫下你的想法或回答…') + '"></textarea><div class="row"><input type="text" name="n" maxlength="30" placeholder="稱呼（不匿名時顯示）"><label style="margin:0;display:flex;align-items:center;gap:5px;font-weight:500;color:var(--navy)"><input type="checkbox" name="a" checked style="width:18px;height:18px;accent-color:#B8503A">匿名</label><button class="go" type="submit">送出</button></div></form></div>';
+  }
+  function loadReplies(id) {
+    return jsonp('replies', { messageId: id }).then(function (r) { st.replies[id] = r.replies || []; render(); }).catch(function () { st.replies[id] = []; render(); banner('回應讀取失敗，請再試一次'); });
+  }
+  function setCat(c) {
+    st.cat = c;
+    ['prayer', 'question'].forEach(function (k) { $('t-' + k).setAttribute('aria-selected', k === c); });
+    if (!st[c].data) { render(); load(c); } else render();
+  }
+  document.querySelectorAll('.tabs button').forEach(function (b) { b.onclick = function () { setCat(b.dataset.cat); }; });
+  document.querySelectorAll('.cat button').forEach(function (b) { b.onclick = function () { st.formCat = b.dataset.cat; document.querySelectorAll('.cat button').forEach(function (x) { x.setAttribute('aria-pressed', x === b); }); }; });
+  $('more').onclick = function () { st[st.cat].limit += 5; load(st.cat); };
+  $('list').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-act]'); if (!b) return; var id = b.dataset.id;
+    if (b.dataset.act === 'heart') {
+      b.disabled = true;
+      jsonp('heart', { id: id }).then(function (r) {
+        var h = store('joy-board-hearted') || {}; h[id] = 1; store('joy-board-hearted', h);
+        (st[st.cat].data.messages || []).forEach(function (m) { if (m.id === id) m.hearts = r.hearts; }); render();
+      }).catch(function () { b.disabled = false; banner('愛心送出失敗，請再試一次'); });
+    } else if (b.dataset.act === 'thread') {
+      st.open[id] = !st.open[id]; render(); if (st.open[id] && !st.replies[id]) loadReplies(id);
+    }
+  });
+  $('list').addEventListener('submit', function (e) {
+    var f = e.target; if (!f.classList.contains('rform')) return; e.preventDefault();
+    var id = f.dataset.id, c = f.elements.c.value.trim(); if (!c) return;
+    var btn = f.querySelector('button.go'); btn.disabled = true;
+    postWrite({ action: 'addReply', messageId: id, displayName: f.elements.n.value.trim(), content: c, anonymous: f.elements.a.checked })
+      .then(function () { return new Promise(function (r) { setTimeout(r, 1500); }); })
+      .then(function () { return loadReplies(id); }).then(function () { load(st.cat); })
+      .catch(function () { btn.disabled = false; banner('回應送出失敗，請再試一次'); });
+  });
+  $('f').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var n = $('fn').value.trim(), c = $('fc').value.trim(), m = $('fm'), b = $('send');
+    m.className = 'msg'; m.textContent = '';
+    if (!n) { m.textContent = '請填寫稱呼'; m.className = 'msg err'; return; }
+    if (!c) { m.textContent = '請填寫內容'; m.className = 'msg err'; return; }
+    b.disabled = true; b.textContent = '送出中…';
+    var cat = st.formCat;
+    postWrite({ action: 'addMessage', category: cat, displayName: n, content: c, anonymous: $('fa').checked })
+      .then(function () { return new Promise(function (r) { setTimeout(r, 1800); }); })
+      .then(function () {
+        $('fc').value = ''; $('fa').checked = false; m.textContent = '送出成功，謝謝分享 🙏'; m.className = 'msg ok';
+        st[cat].limit = Math.max(5, st[cat].limit); st[cat].data = null; setCat(cat);
+      })
+      .catch(function () { m.textContent = '送出失敗，請稍後再試一次'; m.className = 'msg err'; })
+      .then(function () { b.disabled = false; b.textContent = '送出'; });
+  });
+  var nm = store('joy-board-name'); if (nm) $('fn').value = nm;
+  $('fn').addEventListener('change', function () { store('joy-board-name', $('fn').value.trim()); });
+  render(); load('prayer');
+})();
+</script>
+</body>
+</html>
