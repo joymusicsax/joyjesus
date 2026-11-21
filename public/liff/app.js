@@ -189,6 +189,7 @@
     var h = '<div class="card" style="display:flex;gap:14px;align-items:center">' + boatBadge(boat, 60) + '<div style="flex:1;min-width:0"><p class="kicker" style="color:' + esc(color) + '">' + esc(boat ? boat.en : 'ON BOARD') + '</p><p class="h1" style="margin-top:2px">' + esc(m.name) + '</p><p class="small">' + esc(boat ? boat.name : m.circle) + (days ? '・上船第 ' + days + ' 天' : '') + (m.status === '待船長聯繫' ? '・等船長打招呼' : '') + '</p></div></div>';
     if (boat && boat.captain) h += '<div class="card" style="display:flex;align-items:center;gap:12px"><span class="avatar" style="width:40px;height:40px;background:var(--gold)">' + esc(boat.captain.slice(0, 1)) + '</span><div style="flex:1;min-width:0"><p class="tiny">你的船長</p><p style="font-weight:700">' + esc(boat.captain) + (boat.sailors.length ? ' ＋ 水手 ' + esc(boat.sailors.join('、')) : '') + '</p></div><a class="btn line" style="padding:8px 12px;font-size:13px;white-space:nowrap" href="' + esc(oaMessage('我是' + m.name + '（' + boat.name + '），想找船長' + boat.captain + '聊聊')) + '" target="_blank" rel="noopener">傳訊息</a></div>';
     if (m.status === '待船長聯繫') h += entryCard();
+    h += surveyNudge(m);
     h += introCard(m);
     var crewCircle = m.circle === '小船船員';
     if (!crewCircle) h += seriesBlock('MAIN QUEST・團契主題') + zoomBtn();
@@ -332,6 +333,14 @@
     ['海外', ['馬來西亞', '香港', '新加坡', '中國', '澳洲', '美國', '加拿大', '其他']]
   ];
   var KNOWN = {}; PLACES.forEach(function (g) { g[1].forEach(function (p) { KNOWN[p] = 1; }); });
+  // 還沒填問卷的人：在航海日誌最上面放一張提醒卡（填完就消失），不用滑到最下面的「我的角色」才看到
+  function surveyNudge(m) {
+    var sv = S.me.survey || {}, small = m.circle === '小船船員';
+    if (small ? sv.small : sv.big) return '';
+    var title = small ? '先做小船探索問卷' : '做大船探索問卷，找到你的恩賜';
+    var note = small ? '花 5 分鐘做「我在這裡，想找到什麼？」，讓船長更知道怎麼陪你，也幫你找到自在的方式認識大家。' : '選出最吸引你的三種角色，任務板會出現適合你的角色任務。';
+    return '<div class="card" style="display:flex;flex-direction:column;gap:8px;border:2px solid #E9C46A;background:#FFF9E8"><p class="kicker" style="color:#9A7012">FIRST STEP・先做這一件</p><p class="h2">' + title + '</p><p class="small">' + note + '</p><button class="btn block" style="background:#8A3B6A" data-act="survey" data-k="' + (small ? 'small' : 'big') + '">' + (small ? '開始填小船探索問卷' : '開始填大船探索問卷') + '</button></div>';
+  }
   function introCard(m) {
     return '<div class="card" style="display:flex;flex-direction:column;gap:8px"><div style="display:flex;justify-content:space-between;align-items:baseline"><p class="kicker" style="color:var(--teal)">HELLO・自我介紹</p><span class="tiny">詳細介紹：' + esc(SCOPE_NOTE[m.introScope] || '') + '</span></div>' +
       '<p class="small">居住地區：<b>' + esc(m.region || '還沒填') + '</b>　<span class="tiny">（暱稱和地區全團契看得到）</span></p>' +
