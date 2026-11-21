@@ -7,7 +7,7 @@
 //   remove  { id }  從清單移除（Notion 的封存，可在 Notion 還原）
 import { notion, createPage, updatePage, W, id, handle, json, readJson, HttpError, verifyLine, findMember, isSupervisor } from '../../../lib/notion.js';
 import { DB } from '../../../lib/notion.js';
-import { allVideos, sortVideos, parseVid } from '../../../lib/videos.js';
+import { allVideos, sortVideos, parseVid, syncPlaylist } from '../../../lib/videos.js';
 
 async function requireSupervisor(env, request) {
   const user = await verifyLine(env, request);
@@ -35,6 +35,12 @@ export const onRequestPost = handle(async ({ env, request }) => {
   await requireSupervisor(env, request);
   const b = await readJson(request);
   const act = b.action;
+
+  if (act === 'sync') {
+    const r = await syncPlaylist(env);
+    if (r.error) throw new HttpError(500, r.error);
+    return json({ ok: true, ...r });
+  }
 
   if (act === 'add') {
     const lines = String(b.urls || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean).slice(0, 60);

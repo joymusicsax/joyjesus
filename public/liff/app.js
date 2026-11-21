@@ -500,17 +500,13 @@
       '<button class="chip" data-act="vid-move" data-k="' + v.id + '" data-d="-1"' + (i === 0 ? ' disabled' : '') + ' aria-label="往前">↑ 往前</button>' +
       '<button class="chip" data-act="vid-move" data-k="' + v.id + '" data-d="1"' + (i === n - 1 ? ' disabled' : '') + ' aria-label="往後">↓ 往後</button>' +
       '<button class="chip" data-act="vid-star" data-k="' + v.id + '" aria-pressed="' + v.star + '">' + (v.star ? '★ 星號' : '☆ 星號') + '</button>' +
-      '<button class="chip" data-act="vid-show" data-k="' + v.id + '" aria-pressed="' + !v.show + '">' + (v.show ? '隱藏' : '已隱藏・顯示') + '</button>' +
-      '<button class="chip" data-act="vid-del" data-k="' + v.id + '" style="color:#B3261E">移除</button></div></div>';
+      '<button class="chip" data-act="vid-show" data-k="' + v.id + '" aria-pressed="' + !v.show + '">' + (v.show ? '隱藏' : '已隱藏・按一下顯示') + '</button></div></div>';
   }
   function viewVideos() {
     var h = '<button class="btn ghost" style="align-self:flex-start" data-act="deckmode" data-k="captain">← 回甲板</button>';
     h += '<div><p class="kicker" style="color:var(--brick)">VIDEO ADMIN</p><p class="h1" style="margin-top:3px">影片管理</p><p class="small" style="margin-top:4px">官網 joyjesus.com/videos 的影片。有「星號」的會排在最上面一列；其餘依「日期」的月份自動分組。用「往前／往後」調整同一列的順序。</p></div>';
     if (!S.vids) { loadVids(); return h + spinner(); }
-    h += '<form id="vidAdd" class="card" style="display:flex;flex-direction:column;gap:10px"><p style="font-size:14px;font-weight:700">新增影片</p>' +
-      '<label class="field">YouTube 網址（一行一個，可一次貼很多）<textarea name="urls" rows="4" placeholder="https://www.youtube.com/watch?v=…"></textarea></label>' +
-      '<label class="field">這批影片的日期（選填，之後可以個別改）<input name="date" type="date"></label>' +
-      '<button class="btn block" type="submit">新增</button><p class="tiny">標題會自動抓 YouTube 的影片標題，抓不到時請在下方補上。</p></form>';
+    h += '<div class="card" style="display:flex;flex-direction:column;gap:8px"><p style="font-size:14px;font-weight:700">新影片</p><p class="small">先到 YouTube 上傳，加進「揪喜樂團契」播放清單；回來按同步，新影片會出現在下面（預設是「已隱藏」，確認後按一下顯示）。官網也會自己每 30 分鐘左右同步一次。</p><button class="btn block" data-act="vid-sync">🔄 從播放清單同步</button></div>';
     if (!S.vids.length) return h + '<p class="empty">還沒有影片。</p>';
     var groups = [], idx = {};
     S.vids.forEach(function (v) { var k = vidRowKey(v); if (!(k in idx)) { idx[k] = groups.length; groups.push({ k: k, list: [] }); } groups[idx[k]].list.push(v); });
@@ -882,6 +878,7 @@
     else if (act === 'vid-move') { vidPost({ action: 'move', id: k, dir: +el.dataset.d }, function () { S.vids = null; render(); }); }
     else if (act === 'vid-star') { var vs1 = vidFind(k); if (vs1) { vs1.star = !vs1.star; render(); vidPost({ action: 'update', id: k, star: vs1.star }, function () { S.vids = null; render(); }); } }
     else if (act === 'vid-show') { var vs2 = vidFind(k); if (vs2) { vs2.show = !vs2.show; render(); vidPost({ action: 'update', id: k, show: vs2.show }); } }
+    else if (act === 'vid-sync') { el.disabled = true; el.textContent = '同步中…'; api('/api/videos/admin', { method: 'POST', body: { action: 'sync' } }).then(function (j) { alert(j.added ? '新增 ' + j.added + ' 部（已隱藏，確認後按顯示）' : '沒有新影片'); S.vids = null; render(); }).catch(function (e) { el.disabled = false; el.textContent = '🔄 從播放清單同步'; alert(e.message); }); }
     else if (act === 'vid-del') { var vs3 = vidFind(k); if (vs3 && confirm('把「' + vs3.title + '」從官網清單移除？（只是移除，不會刪 YouTube 影片）')) vidPost({ action: 'remove', id: k }, function () { S.vids = null; render(); }); }
     else if (act === 'deckmode') {
       e.preventDefault(); S.deckMode = k;
@@ -1018,14 +1015,6 @@
       api('/api/survey', { method: 'POST', body: { type: stype, answers: collectSurvey(f0, stype) } })
         .then(function (j) { thanksSheet(stype === 'small' ? '完成小船探索問卷' : '完成大船探索問卷', j.thanks || '謝謝你願意讓我們更認識你。'); return loadMe(); })
         .catch(function (err) { sbtn.disabled = false; sbtn.textContent = '送出問卷'; alert(err.message); });
-      return;
-    }
-    if (f0.id === 'vidAdd') {
-      e.preventDefault();
-      var vb = f0.querySelector('button[type=submit]'); vb.disabled = true; vb.textContent = '新增中…（會一部一部處理，請稍候）';
-      api('/api/videos/admin', { method: 'POST', body: { action: 'add', urls: f0.elements.urls.value, date: f0.elements.date.value } })
-        .then(function (j) { alert('新增 ' + j.added + ' 部' + (j.skipped ? '，略過已存在的 ' + j.skipped + ' 部' : '')); S.vids = null; render(); })
-        .catch(function (err) { vb.disabled = false; vb.textContent = '新增'; alert(err.message); });
       return;
     }
     if (f0.id === 'seriesForm') {
