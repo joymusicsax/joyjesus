@@ -834,13 +834,13 @@
   function sheetFor(k) {
     var c = S.content || { boats: [], teams: [] };
     if (k === 'ark') return openSheet(head('ENTRY 02・方舟', 'var(--brown)', '認識揪喜樂') + '<p class="small">在線上相遇，在生活中同行，在世界中成為祝福。</p><p style="background:#F6EEE2;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7">建立性別友善的福音動態團體，向酷兒分享好消息。</p><a class="btn block" style="background:var(--brown)" href="' + esc(CFG.instagram) + '" target="_blank" rel="noopener">追蹤 Instagram</a><a class="btn ghost block" href="/" target="_blank" rel="noopener">看揪喜樂官網</a>');
-    if (k === 'care') return openSheet(head('ENTRY 01・小船', 'var(--brick)', '找到安全的地方') + '<p class="small">給還在探索信仰或身分、受過傷，或只是好奇的你。</p><p style="background:#F6EEE2;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7">陪伴不是拯救。你可以帶著問號上船，照自己的節奏前進。</p>' + c.boats.map(function (b) { return '<div class="row"><span class="dot" style="background:' + esc(b.color) + '"></span><span style="font-size:14px;font-weight:700;flex:1">' + esc(b.name) + '</span><span class="tiny">' + esc(b.tagline) + '</span></div>'; }).join('') + ((S.me && S.me.member) ? '' : '<button class="btn block" data-act="quiz">做 3 題小測驗，找到你的船</button>'));
+    if (k === 'care') return openSheet(head('ENTRY 01・小船', 'var(--brick)', '找到安全的地方') + '<p class="small">三艘小船，對應三種起點：剛認識信仰、想彈性參與、想參與服事。</p><p style="background:#F6EEE2;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7">陪伴不是拯救。你可以帶著問號上船，照自己的節奏前進。</p>' + c.boats.map(function (b) { return '<div class="row"><span class="dot" style="background:' + esc(b.color) + '"></span><span style="font-size:14px;font-weight:700;flex:1">' + esc(b.name) + '</span><span class="tiny">' + esc(b.tagline) + '</span></div>'; }).join('') + ((S.me && S.me.member) ? '' : '<button class="btn block" data-act="quiz">做 3 題小測驗，找到你的船</button>'));
     if (k === 'sail') return openSheet(head('ENTRY 03・快艇', 'var(--teal)', '一起出航') + '<p class="small">給想成為同工、執行外展專案的你。有分工表、有懶人包，不會讓你一個人扛。</p>' + c.teams.map(function (t) { return '<div class="row"><span class="dot" style="background:var(--teal)"></span><span style="flex:1"><span style="display:block;font-size:14px;font-weight:700">' + esc(t.name) + '</span><span class="tiny">' + esc(t.desc) + '</span></span><span class="tiny">' + esc(t.commitment.join('・')) + '</span></div>'; }).join('') + '<a class="btn block" style="background:var(--teal)" href="' + esc(CFG.lineOA) + '" target="_blank" rel="noopener">我想加入，私訊 LINE@</a>');
   }
   var QS = [
-    ['你和基督信仰的關係，比較像？', ['剛開始認識，有點好奇', '曾經很投入，但受過傷', '信仰穩定，想多理解同志基督徒']],
-    ['現在的你，最需要的是？', ['有人回答我的疑問', '有人好好聽我說', '學習怎麼陪伴別人']],
-    ['上船之後，你希望…', ['慢慢認識耶穌', '找到可以重新靠岸的地方', '和同志基督徒一起同行']]
+    ['你和基督信仰的關係，比較像？', ['剛開始認識，有點好奇', '已經認識信仰，想用自己的節奏參與', '信仰穩定，想一起參與服事']],
+    ['現在的你，最需要的是？', ['有人回答我的疑問', '一個可以彈性來去、被接納的地方', '學習怎麼陪伴別人']],
+    ['上船之後，你希望…', ['慢慢認識耶穌', '有空就參加，不被要求', '和夥伴一起承擔服事']]
   ];
   var BOATS = ['恩典漂漂船', '浪子返航號', '摩西分海號'];
   var quizAns = [];
