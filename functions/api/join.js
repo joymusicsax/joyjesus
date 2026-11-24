@@ -3,14 +3,15 @@
 // 1. 建立成員，先掛在測驗結果那艘船（之後可在 Notion 改）
 // 2. 官方帳號推播入口群組邀請給新朋友、新船員通知給該船船長（有設定 LINE_OA_TOKEN 才會發）
 import { DB, notion, createPage, updatePage, P, W, id, handle, json, verifyLine, findMember, readJson, nowTW, HttpError,
-  boatMap, pushLine, ENTRY_GROUP_URL, ENTRY_GROUP_MSG, parsePlace, completeIntroQuest } from '../../lib/notion.js';
+  boatMap, pushLine, ENTRY_GROUP_URL, ENTRY_GROUP_MSG, parsePlace, completeIntroQuest, cleanEmail } from '../../lib/notion.js';
 
 const BOATS = ['恩典漂漂船', '浪子返航號', '摩西分海號'];
 const SCOPES = ['只給船長', '同船', '全團契'];
 
 export const onRequestPost = handle(async ({ env, request }) => {
   const user = await verifyLine(env, request);
-  const { boat, intro, introScope, place, placeOther, nick } = await readJson(request);
+  const { boat, intro, introScope, place, placeOther, nick, email } = await readJson(request);
+  const mail = cleanEmail(email);
   const nickname = String(nick || '').trim().slice(0, 20) || user.name;
   if (!BOATS.includes(boat)) throw new HttpError(400, '請選擇一艘小船');
   const loc = parsePlace(place, placeOther);
@@ -24,6 +25,7 @@ export const onRequestPost = handle(async ({ env, request }) => {
   const boatId = bm.byName[boat];
   const props = {
     '暱稱': W.title(nickname),
+    'Email': W.email(mail),
     'LINE userId': W.text(user.userId),
     '圈層': W.select('小船船員'),
     '狀態': W.status('待船長聯繫'),

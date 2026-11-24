@@ -184,6 +184,7 @@ export const onRequestGet = handle(async ({ env, request }) => {
       joined: (P.date(m, '加入日期') || '').slice(0, 10) || null,
       isCaptain: myBoats.length > 0 || roles.includes('船長'),
       isSupervisor: sup,
+      email: (m.properties['Email'] && m.properties['Email'].email) || '',
       intro: P.text(m, '自我介紹'),
       introScope: P.select(m, '介紹公開範圍') || '只給船長',
       region: P.text(m, '居住地區') || P.select(m, '地區') || '',

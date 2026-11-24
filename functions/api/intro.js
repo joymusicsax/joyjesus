@@ -8,7 +8,7 @@
 //   督導看得到全部
 // 送出自我介紹＝完成第一個任務「寫下你的自我介紹」
 import { DB, queryAll, updatePage, P, W, id, handle, json, verifyLine, findMember, readJson, HttpError,
-  boatMap, boatOf, captainBoats, isSupervisor, parsePlace, completeIntroQuest } from '../../lib/notion.js';
+  boatMap, boatOf, captainBoats, isSupervisor, parsePlace, completeIntroQuest, cleanEmail } from '../../lib/notion.js';
 
 const SCOPES = ['只給船長', '同船', '全團契'];
 
@@ -51,13 +51,14 @@ export const onRequestPost = handle(async ({ env, request }) => {
   const user = await verifyLine(env, request);
   const me = await findMember(env, user.userId);
   if (!me) throw new HttpError(403, '請先登上一艘小船');
-  const { intro, scope, place, placeOther, nick } = await readJson(request);
+  const { intro, scope, place, placeOther, nick, email } = await readJson(request);
   const nickname = String(nick || '').trim().slice(0, 20) || P.title(me, '暱稱');
   const loc = parsePlace(place, placeOther);
   if (!SCOPES.includes(scope)) throw new HttpError(400, '請選擇誰看得到');
   const text = String(intro || '').trim().slice(0, 500);
   await updatePage(env, id(me), {
     '暱稱': W.title(nickname),
+    ...(email ? { 'Email': W.email(cleanEmail(email)) } : {}),
     '居住地區': W.text(loc.place),
     '地區': W.select(loc.area),
     '自我介紹': text ? W.text(text) : { rich_text: [] },

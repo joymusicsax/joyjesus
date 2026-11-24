@@ -67,9 +67,16 @@
       if (S.token) loadMe();
     });
   }
+  // 舊成員還沒填 Email：開啟頁面時跳出提醒（每次開啟一次，填完就不再出現）
+  function emailNudge() {
+    var m = S.me && S.me.member;
+    if (!m || m.email || S.emailAsked || !$sheet.hidden) return;
+    S.emailAsked = true;
+    openSheet(head('HELLO', 'var(--teal)', '補填你的 Email') + '<p class="small">為了讓團契能寄活動與重要通知給你，請留下常用的 Email。只有團契同工看得到，不會顯示給其他船員。</p><form id="emailForm" style="display:flex;flex-direction:column;gap:12px"><label class="field">Email<input name="email" type="email" required maxlength="120" autocomplete="email" placeholder="name@example.com"></label><button class="btn block" type="submit">儲存</button></form><button class="btn ghost block" data-act="close-sheet">下次再填</button>');
+  }
   function loadMe() {
     S.meError = null;
-    return api('/api/me').then(function (j) { S.me = j; render(); }).catch(function (e) { S.meError = e.message; render(); });
+    return api('/api/me').then(function (j) { S.me = j; render(); emailNudge(); }).catch(function (e) { S.meError = e.message; render(); });
   }
 
   // ---------- 路由 ----------
@@ -364,11 +371,12 @@
       (m.intro ? '<p style="font-size:14px;line-height:1.75;white-space:pre-wrap">' + esc(m.intro) + '</p>' : '<p class="small">還沒寫自我介紹。想讓船長和船員怎麼認識你？</p>') +
       '<button class="btn ghost" style="align-self:flex-start;padding:6px 12px;font-size:12px" data-act="intro-edit">' + (m.intro || m.region ? '編輯' : '寫自我介紹') + '</button></div>';
   }
-  function introFields(intro, scope, region, nick) {
+  function introFields(intro, scope, region, nick, email) {
     scope = scope || '只給船長';
     var isOther = !!region && !KNOWN[region];
     var sel = isOther ? '其他' : (region || '');
-    return '<label class="field">顯示暱稱 <span style="color:var(--brick)">*必填</span>　<span class="tiny" style="font-weight:400">團契成員看到的名字，可以隨時修改</span><input name="nick" required maxlength="20" value="' + esc(nick || '') + '" placeholder="想讓大家怎麼稱呼你？"></label>' +
+    return '<label class="field">Email <span style="color:var(--brick)">*必填</span>　<span class="tiny" style="font-weight:400">只有團契同工看得到，用來寄活動與重要通知</span><input name="email" type="email" required maxlength="120" autocomplete="email" value="' + esc(email || '') + '" placeholder="name@example.com"></label>' +
+      '<label class="field">顯示暱稱 <span style="color:var(--brick)">*必填</span>　<span class="tiny" style="font-weight:400">團契成員看到的名字，可以隨時修改</span><input name="nick" required maxlength="20" value="' + esc(nick || '') + '" placeholder="想讓大家怎麼稱呼你？"></label>' +
       '<label class="field">居住地區 <span style="color:var(--brick)">*必填</span>　<span class="tiny" style="font-weight:400">和暱稱一起，全團契看得到</span><select name="place" required data-act-change="place"><option value="">請選擇縣市或國家</option>' +
       PLACES.map(function (g) { return '<optgroup label="' + (g[0] === '海外' ? '海外' : '台灣・' + g[0]) + '">' + g[1].map(function (p) { return '<option' + (p === sel ? ' selected' : '') + '>' + p + '</option>'; }).join('') + '</optgroup>'; }).join('') +
       '</select></label><label class="field" id="placeOtherWrap"' + (isOther ? '' : ' hidden') + '>請填寫國家或城市<input name="placeOther" maxlength="30" value="' + esc(isOther ? region : '') + '" placeholder="例如：英國・倫敦"></label>' +
@@ -844,7 +852,7 @@
     var cnt = [0, 0, 0]; quizAns.forEach(function (a) { cnt[a]++; });
     var max = Math.max.apply(null, cnt), r = cnt[quizAns[0]] === max ? quizAns[0] : cnt.indexOf(max);
     var info = ((S.content && S.content.boats) || []).filter(function (b) { return b.name === BOATS[r]; })[0] || { name: BOATS[r], en: '', color: '#B8503A', result: '' };
-    openSheet(head('YOUR BOAT', esc(info.color), info.name) + '<p class="small">' + esc(info.result) + '</p><p class="tiny">登船後會先邀請你進入口群組，再由船長邀請你進小船群組。</p><form id="joinForm" data-boat="' + esc(info.name) + '" style="display:flex;flex-direction:column;gap:12px">' + introFields('', '只給船長', '', (S.me && S.me.user && S.me.user.name) || '') + '<button class="btn dark block" type="submit">登上這艘船</button></form><button class="btn ghost block" data-act="quiz">重新測一次</button>');
+    openSheet(head('YOUR BOAT', esc(info.color), info.name) + '<p class="small">' + esc(info.result) + '</p><p class="tiny">登船後會先邀請你進入口群組，再由船長邀請你進小船群組。</p><form id="joinForm" data-boat="' + esc(info.name) + '" style="display:flex;flex-direction:column;gap:12px">' + introFields('', '只給船長', '', (S.me && S.me.user && S.me.user.name) || '', '') + '<button class="btn dark block" type="submit">登上這艘船</button></form><button class="btn ghost block" data-act="quiz">重新測一次</button>');
   }
 
   // ---------- 事件 ----------
@@ -874,7 +882,7 @@
     }
     else if (act === 'intro-edit') {
       var mm = S.me && S.me.member;
-      openSheet(head('HELLO', 'var(--teal)', '我的暱稱與自我介紹') + '<form id="introForm" style="display:flex;flex-direction:column;gap:12px">' + introFields(mm && mm.intro, mm && mm.introScope, mm && mm.region, mm && mm.name) + '<button class="btn block" type="submit">儲存</button></form>');
+      openSheet(head('HELLO', 'var(--teal)', '我的暱稱與自我介紹') + '<form id="introForm" style="display:flex;flex-direction:column;gap:12px">' + introFields(mm && mm.intro, mm && mm.introScope, mm && mm.region, mm && mm.name, mm && mm.email) + '<button class="btn block" type="submit">儲存</button></form>');
     }
     else if (act === 'month') { if (k) { S.newsMonth = k; render(); } }
     else if (act === 'event') {
@@ -893,6 +901,7 @@
     else if (act === 'cal-undo') { var ud = store('joy-cal') || {}; delete ud[el.dataset.id]; store('joy-cal', ud); closeSheet(); render(); }
     else if (act === 'kind') { S.boardKind = k; S.openThread = null; render(); }
     else if (act === 'replay') { replayPlayer(); }
+    else if (act === 'close-sheet') { closeSheet(); }
     else if (act === 'vid-move') { vidPost({ action: 'move', id: k, dir: +el.dataset.d }, function () { S.vids = null; render(); }); }
     else if (act === 'vid-star') { var vs1 = vidFind(k); if (vs1) { vs1.star = !vs1.star; render(); vidPost({ action: 'update', id: k, star: vs1.star }, function () { S.vids = null; render(); }); } }
     else if (act === 'vid-show') { var vs2 = vidFind(k); if (vs2) { vs2.show = !vs2.show; render(); vidPost({ action: 'update', id: k, show: vs2.show }); } }
@@ -980,6 +989,13 @@
   });
   document.addEventListener('submit', function (e) {
     var f0 = e.target;
+    if (f0.id === 'emailForm') {
+      e.preventDefault();
+      var eb = f0.querySelector('button[type=submit]'), el0 = eb.textContent; eb.disabled = true; eb.textContent = '儲存中…';
+      api('/api/email', { method: 'POST', body: { email: f0.elements.email.value } }).then(function () { closeSheet(); return loadMe(); })
+        .catch(function (err) { eb.disabled = false; eb.textContent = el0; alert(err.message); });
+      return;
+    }
     if (f0.id === 'joinForm' || f0.id === 'introForm') {
       e.preventDefault();
       if (!S.loggedIn) return login();
@@ -991,7 +1007,9 @@
       if (pl === '其他' && !po) { alert('請填寫你住的國家或城市'); f0.elements.placeOther.focus(); return; }
       var nk = (f0.elements.nick.value || '').trim();
       if (!nk) { alert('請填寫想顯示的暱稱'); f0.elements.nick.focus(); return; }
-      var body = { nick: nk, intro: f0.elements.intro.value, introScope: sc, scope: sc, place: pl, placeOther: po };
+      var em = (f0.elements.email.value || '').trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)) { alert('請填寫正確的 Email'); f0.elements.email.focus(); return; }
+      var body = { email: em, nick: nk, intro: f0.elements.intro.value, introScope: sc, scope: sc, place: pl, placeOther: po };
       b0.disabled = true; b0.textContent = '送出中…';
       if (f0.id === 'joinForm') {
         body.boat = f0.dataset.boat;
