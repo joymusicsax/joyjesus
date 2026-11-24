@@ -10,7 +10,8 @@ const SCOPES = ['只給船長', '同船', '全團契'];
 
 export const onRequestPost = handle(async ({ env, request }) => {
   const user = await verifyLine(env, request);
-  const { boat, intro, introScope, place, placeOther } = await readJson(request);
+  const { boat, intro, introScope, place, placeOther, nick } = await readJson(request);
+  const nickname = String(nick || '').trim().slice(0, 20) || user.name;
   if (!BOATS.includes(boat)) throw new HttpError(400, '請選擇一艘小船');
   const loc = parsePlace(place, placeOther);
   const scope = SCOPES.includes(introScope) ? introScope : '只給船長';
@@ -22,7 +23,7 @@ export const onRequestPost = handle(async ({ env, request }) => {
   const bm = await boatMap(env);
   const boatId = bm.byName[boat];
   const props = {
-    '暱稱': W.title(user.name),
+    '暱稱': W.title(nickname),
     'LINE userId': W.text(user.userId),
     '圈層': W.select('小船船員'),
     '狀態': W.status('待船長聯繫'),
@@ -38,7 +39,7 @@ export const onRequestPost = handle(async ({ env, request }) => {
   const page = await createPage(env, DB.members, props);
 
   // 送出自我介紹＝完成第一個任務
-  await completeIntroQuest(env, id(page), user.name).catch((e) => console.error(e));
+  await completeIntroQuest(env, id(page), nickname).catch((e) => console.error(e));
 
   // 推播：新朋友 → 入口群組邀請
   const sent = await pushLine(env, user.userId, `${ENTRY_GROUP_MSG}\n👉 ${ENTRY_GROUP_URL}`);
@@ -50,7 +51,7 @@ export const onRequestPost = handle(async ({ env, request }) => {
     await Promise.all(capIds.map(async (cid) => {
       const cap = await notion(env, 'pages/' + cid, null, 'GET').catch(() => null);
       const to = cap && P.text(cap, 'LINE userId');
-      if (to) await pushLine(env, to, `⛵ 新船員登上了${boat}：${user.name}\n請到船長甲板看看，並邀請他進小船群組。\nhttps://miniapp.line.me/2012557389-Jfp3TUw4/deck`);
+      if (to) await pushLine(env, to, `⛵ 新船員登上了${boat}：${nickname}\n請到船長甲板看看，並邀請他進小船群組。\nhttps://miniapp.line.me/2012557389-Jfp3TUw4/deck`);
     }));
   }
   return json({ ok: true, groupUrl: ENTRY_GROUP_URL, groupMsg: ENTRY_GROUP_MSG });

@@ -364,11 +364,12 @@
       (m.intro ? '<p style="font-size:14px;line-height:1.75;white-space:pre-wrap">' + esc(m.intro) + '</p>' : '<p class="small">還沒寫自我介紹。想讓船長和船員怎麼認識你？</p>') +
       '<button class="btn ghost" style="align-self:flex-start;padding:6px 12px;font-size:12px" data-act="intro-edit">' + (m.intro || m.region ? '編輯' : '寫自我介紹') + '</button></div>';
   }
-  function introFields(intro, scope, region) {
+  function introFields(intro, scope, region, nick) {
     scope = scope || '只給船長';
     var isOther = !!region && !KNOWN[region];
     var sel = isOther ? '其他' : (region || '');
-    return '<label class="field">居住地區 <span style="color:var(--brick)">*必填</span>　<span class="tiny" style="font-weight:400">和暱稱一起，全團契看得到</span><select name="place" required data-act-change="place"><option value="">請選擇縣市或國家</option>' +
+    return '<label class="field">顯示暱稱 <span style="color:var(--brick)">*必填</span>　<span class="tiny" style="font-weight:400">團契成員看到的名字，可以隨時修改</span><input name="nick" required maxlength="20" value="' + esc(nick || '') + '" placeholder="想讓大家怎麼稱呼你？"></label>' +
+      '<label class="field">居住地區 <span style="color:var(--brick)">*必填</span>　<span class="tiny" style="font-weight:400">和暱稱一起，全團契看得到</span><select name="place" required data-act-change="place"><option value="">請選擇縣市或國家</option>' +
       PLACES.map(function (g) { return '<optgroup label="' + (g[0] === '海外' ? '海外' : '台灣・' + g[0]) + '">' + g[1].map(function (p) { return '<option' + (p === sel ? ' selected' : '') + '>' + p + '</option>'; }).join('') + '</optgroup>'; }).join('') +
       '</select></label><label class="field" id="placeOtherWrap"' + (isOther ? '' : ' hidden') + '>請填寫國家或城市<input name="placeOther" maxlength="30" value="' + esc(isOther ? region : '') + '" placeholder="例如：英國・倫敦"></label>' +
       '<label class="field">詳細自我介紹<textarea name="intro" rows="4" maxlength="500" placeholder="想怎麼被稱呼、從哪裡來、最近在想什麼…寫多少都可以">' + esc(intro || '') + '</textarea></label>' +
@@ -843,7 +844,7 @@
     var cnt = [0, 0, 0]; quizAns.forEach(function (a) { cnt[a]++; });
     var max = Math.max.apply(null, cnt), r = cnt[quizAns[0]] === max ? quizAns[0] : cnt.indexOf(max);
     var info = ((S.content && S.content.boats) || []).filter(function (b) { return b.name === BOATS[r]; })[0] || { name: BOATS[r], en: '', color: '#B8503A', result: '' };
-    openSheet(head('YOUR BOAT', esc(info.color), info.name) + '<p class="small">' + esc(info.result) + '</p><p class="tiny">登船後會先邀請你進入口群組，再由船長邀請你進小船群組。</p><form id="joinForm" data-boat="' + esc(info.name) + '" style="display:flex;flex-direction:column;gap:12px">' + introFields('', '只給船長') + '<button class="btn dark block" type="submit">登上這艘船</button></form><button class="btn ghost block" data-act="quiz">重新測一次</button>');
+    openSheet(head('YOUR BOAT', esc(info.color), info.name) + '<p class="small">' + esc(info.result) + '</p><p class="tiny">登船後會先邀請你進入口群組，再由船長邀請你進小船群組。</p><form id="joinForm" data-boat="' + esc(info.name) + '" style="display:flex;flex-direction:column;gap:12px">' + introFields('', '只給船長', '', (S.me && S.me.user && S.me.user.name) || '') + '<button class="btn dark block" type="submit">登上這艘船</button></form><button class="btn ghost block" data-act="quiz">重新測一次</button>');
   }
 
   // ---------- 事件 ----------
@@ -873,7 +874,7 @@
     }
     else if (act === 'intro-edit') {
       var mm = S.me && S.me.member;
-      openSheet(head('HELLO', 'var(--teal)', '我的自我介紹') + '<form id="introForm" style="display:flex;flex-direction:column;gap:12px">' + introFields(mm && mm.intro, mm && mm.introScope, mm && mm.region) + '<button class="btn block" type="submit">儲存</button></form>');
+      openSheet(head('HELLO', 'var(--teal)', '我的暱稱與自我介紹') + '<form id="introForm" style="display:flex;flex-direction:column;gap:12px">' + introFields(mm && mm.intro, mm && mm.introScope, mm && mm.region, mm && mm.name) + '<button class="btn block" type="submit">儲存</button></form>');
     }
     else if (act === 'month') { if (k) { S.newsMonth = k; render(); } }
     else if (act === 'event') {
@@ -988,7 +989,9 @@
       var pl = f0.elements.place.value, po = (f0.elements.placeOther.value || '').trim();
       if (!pl) { alert('請選擇居住地區'); return; }
       if (pl === '其他' && !po) { alert('請填寫你住的國家或城市'); f0.elements.placeOther.focus(); return; }
-      var body = { intro: f0.elements.intro.value, introScope: sc, scope: sc, place: pl, placeOther: po };
+      var nk = (f0.elements.nick.value || '').trim();
+      if (!nk) { alert('請填寫想顯示的暱稱'); f0.elements.nick.focus(); return; }
+      var body = { nick: nk, intro: f0.elements.intro.value, introScope: sc, scope: sc, place: pl, placeOther: po };
       b0.disabled = true; b0.textContent = '送出中…';
       if (f0.id === 'joinForm') {
         body.boat = f0.dataset.boat;

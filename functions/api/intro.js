@@ -51,16 +51,18 @@ export const onRequestPost = handle(async ({ env, request }) => {
   const user = await verifyLine(env, request);
   const me = await findMember(env, user.userId);
   if (!me) throw new HttpError(403, '請先登上一艘小船');
-  const { intro, scope, place, placeOther } = await readJson(request);
+  const { intro, scope, place, placeOther, nick } = await readJson(request);
+  const nickname = String(nick || '').trim().slice(0, 20) || P.title(me, '暱稱');
   const loc = parsePlace(place, placeOther);
   if (!SCOPES.includes(scope)) throw new HttpError(400, '請選擇誰看得到');
   const text = String(intro || '').trim().slice(0, 500);
   await updatePage(env, id(me), {
+    '暱稱': W.title(nickname),
     '居住地區': W.text(loc.place),
     '地區': W.select(loc.area),
     '自我介紹': text ? W.text(text) : { rich_text: [] },
     '介紹公開範圍': W.select(scope),
   });
-  const done = await completeIntroQuest(env, id(me), P.title(me, '暱稱'));
+  const done = await completeIntroQuest(env, id(me), nickname);
   return json({ ok: true, questDone: done });
 });
